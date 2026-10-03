@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('异常判定下钻')"/>
+    <style>
+        .kv {margin-right:18px;font-size:13px;color:#666;}
+        .kv b{color:#333;}
+        .snap-box {border:1px solid #e2e2e2;border-radius:6px;padding:12px 14px;background:#fff;margin-bottom:12px;}
+        .lock-tip {color:#FF5722;font-size:12px;}
+    </style>
+</head>
+<body class="pear-container" th:if="${view != null}">
+<th:block th:with="a=${view.anomaly}, row=${view.impRow}, rule=${view.rule}, report=${view.report}">
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">
+        <span th:text="${a.anomNo}"></span>
+        <span class="layui-badge" th:if="${a.gradeLevel == 4}">严重超标</span>
+        <span class="layui-badge layui-bg-orange" th:if="${a.gradeLevel == 3}">超标</span>
+        <span class="layui-badge layui-bg-blue" th:if="${a.gradeLevel == 2}">关注</span>
+        <span class="layui-badge layui-bg-gray" th:if="${a.correctTimes > 0}">已更正 <span th:text="${a.correctTimes}"></span> 轮</span>
+    </div>
+    <div class="layui-card-body">
+        <div class="snap-box">
+            <b>① 当天的水（登记快照）</b>
+            <div style="margin-top:8px;">
+                <span class="kv">点位：<b th:text="${a.siteNo}"></b></span>
+                <span class="kv">指标：<b th:text="${a.itemCode}"></b></span>
+                <span class="kv">样本类别：<b th:text="${a.sampleType}"></b></span>
+                <span class="kv">检测时刻：<b th:text="${#dates.format(a.testAt,'yyyy-MM-dd HH:mm:ss')}"></b></span>
+                <span class="kv">检测值：<b th:text="${a.qty}"></b></span>
+            </div>
+        </div>
+        <div class="snap-box">
+            <b>② 当天生效的标准（当场快照，日后线改了也还是这版）</b>
+            <div style="margin-top:8px;">
+                <span class="kv">标准线：<b th:text="${a.ruleCode}"></b></span>
+                <span class="kv">线名：<b th:text="${a.ruleName}"></b></span>
+                <span class="kv">生效日：<b th:text="${a.ruleEffDate == null ? '—' : #dates.format(a.ruleEffDate,'yyyy-MM-dd')}"></b></span>
+                <span class="kv">关注界值：<b th:text="${a.th1Max == null ? '不设' : a.th1Max}"></b></span>
+                <span class="kv">超标界值：<b th:text="${a.th2Max == null ? '不设' : a.th2Max}"></b></span>
+                <span class="kv">严重界值：<b th:text="${a.th3Max == null ? '不设' : a.th3Max}"></b></span>
+            </div>
+        </div>
+        <div class="snap-box">
+            <b>③ 判定完整过程</b>
+            <div style="margin-top:8px;line-height:1.9;">
+                <span th:text="${a.judgeText}"></span>
+            </div>
+            <div style="margin-top:6px;">
+                <span class="kv">超了多少：<b th:text="${a.overAmt == null ? '—' : '越 ' + a.baseTh + '，超 ' + a.overAmt}"></b></span>
+                <span class="kv">要复测：<b th:text="${a.needRetest == 1 ? '要' : '不要'}"></b></span>
+                <span class="kv">要停水：<b th:text="${a.needStop == 1 ? '要' : '不要'}"></b></span>
+            </div>
+        </div>
+        <div class="snap-box">
+            <b>④ 当日原始检测记录（反查回原账）</b>
+            <div style="margin-top:8px;" th:if="${row != null}">
+                <span class="kv">批次：<b th:text="${row.batchNo}"></b></span>
+                <span class="kv">行次：<b th:text="${row.rowNo}"></b></span>
+                <span class="kv">原始行原文：</span>
+                <code th:text="${row.rawLine}"></code>
+                <div style="margin-top:6px;">
+                    <a class="layui-btn layui-btn-xs pear-btn-primary"
+                       th:href="@{/zwImpRow/detail(batchNo=${row.batchNo})}" shiro:hasPermission="zw:zwImpRow:view">
+                        打开检测批次下钻页
+                    </a>
+                </div>
+            </div>
+            <div th:if="${row == null}" class="lock-tip">原始检测行已随未核实批次重导置删，本登记未上报已随版留痕。</div>
+        </div>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">这条异常的后续处置</div>
+    <div class="layui-card-body">
+        <th:block th:if="${report != null}">
+            <a class="pear-btn pear-btn-primary pear-btn-md"
+               th:href="@{/zwAnomaly/reportDetail/{id}(id=${report.id})}">打开上报单 <b th:text="${report.reportNo}"></b> 全链</a>
+        </th:block>
+        <th:block th:if="${report == null}">
+            <div style="margin-bottom:10px;">还没挂上报单。同一笔异常只能上报一次，报过台账只读、不能改不能撤不能改名。</div>
+            <button shiro:hasPermission="zw:zwAnomaly:report"
+                    class="pear-btn pear-btn-warming pear-btn-md" id="btn-report">上报这条异常</button>
+            <button shiro:hasPermission="zw:zwAnomaly:correct"
+                    class="pear-btn pear-btn-primary pear-btn-md" id="btn-correct">判定判错了，更正本条</button>
+            <div class="lock-tip" style="margin-top:8px;">
+                更正只改本条内容：按原始检测记录的当前读数走当日现行标准重算。这一轮改过、已归档结案、已反映到供水户名下的，动不了。
+            </div>
+        </th:block>
+    </div>
+</div>
+</th:block>
+
+<div class="layui-card" th:if="${view == null}">
+    <div class="layui-card-body">登记不存在。</div>
+</div>
+
+<th:block th:include="include :: footer"/>
+<script th:inline="javascript">
+    let ANOM_ID = [[${view != null ? view.anomaly.id : null}]];
+    layui.use(['jquery', 'layer'], function () {
+        let $ = layui.jquery, layer = layui.layer;
+        let MODULE_PATH = rootPath + '/zwAnomaly/';
+
+        $('#btn-report').on('click', function () {
+            layer.confirm('同一笔异常只能上报一次；同点位同日同指标报第二单整单不成立。确认上报？', {icon: 3}, function (idx) {
+                layer.close(idx);
+                $.post(MODULE_PATH + 'report', {anomId: ANOM_ID}, function (res) {
+                    if (res.code === 200) {
+                        layer.msg('已上报，复测单需要时自动开出', {icon: 1, time: 900}, () => location.reload());
+                    } else {
+                        layer.alert(res.msg || '整单不成立', {icon: 2});
+                    }
+                });
+            });
+        });
+
+        $('#btn-correct').on('click', function () {
+            layer.prompt({title: '更正说明（按原始检测记录当前读数、当日现行标准重算，只改本条）', formType: 2},
+                function (text, idx) {
+                    layer.close(idx);
+                    $.post(MODULE_PATH + 'correct', {id: ANOM_ID, note: text}, function (res) {
+                        layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2, time: 1200},
+                            () => { if (res.code === 200) location.reload(); });
+                    });
+                });
+        });
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('水质异常上报处置台账')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">上报单号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="reportNo" placeholder="点位-年-序" class="layui-input">
+                </div>
+                <label class="layui-form-label">点位</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="siteNo" placeholder="" class="layui-input">
+                </div>
+                <label class="layui-form-label">处置步</label>
+                <div class="layui-input-inline">
+                    <select name="stepNo" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="0">内部处置</option>
+                        <option value="1">已反映供水户</option>
+                        <option value="2">复测回程</option>
+                        <option value="3">待结案</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">情形</label>
+                <div class="layui-input-inline">
+                    <select name="status" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="0">在办</option>
+                        <option value="1">已结案归档</option>
+                    </select>
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="rep-query">
+                    <i class="layui-icon layui-icon-search"></i> 查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i> 重置
+                </button>
+            </div>
+        </form>
+        <a class="pear-btn pear-btn-md" th:href="@{/zwAnomaly/view}">去异常登记台账</a>
+        <a class="pear-btn pear-btn-md pear-btn-normal" shiro:hasPermission="zw:zwFollow:list" th:href="@{/zwFollow/view}">盯办流水台账</a>
+        <a class="pear-btn pear-btn-md pear-btn-normal" shiro:hasPermission="zw:zwContact:edit" th:href="@{/zwContact/view}">联系人名册</a>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="rep-table" lay-filter="rep-table"></table>
+    </div>
+</div>
+
+<script type="text/html" id="rep-step">
+    {{#  if(d.status == 1){ }}<span class="layui-badge layui-bg-green">已结案归档</span>
+    {{#  } else if(d.stepNo == 0){ }}<span class="layui-badge layui-bg-gray">内部处置</span>
+    {{#  } else if(d.stepNo == 1){ }}<span class="layui-badge layui-bg-orange">已反映供水户（紧盯）</span>
+    {{#  } else if(d.stepNo == 2){ }}<span class="layui-badge layui-bg-blue">复测回程</span>
+    {{#  } else if(d.stepNo == 3){ }}<span class="layui-badge">待结案</span>{{#  } }}
+</script>
+<script type="text/html" id="rep-bar">
+    <a class="layui-btn layui-btn-xs pear-btn-primary" lay-event="open">全链下钻</a>
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form'], function () {
+        let table = layui.table, form = layui.form;
+        let MODULE_PATH = rootPath + '/zwAnomaly/';
+        table.render({
+            elem: '#rep-table', url: MODULE_PATH + 'reportList', page: true, method: 'get', skin: 'line',
+            cols: [[
+                {title: 'ID', field: 'id', hide: true},
+                {title: '上报单号', field: 'reportNo', width: 150},
+                {title: '点位', field: 'siteNo', width: 90, align: 'center'},
+                {title: '检测日', field: 'testDay', width: 110, align: 'center'},
+                {title: '指标', field: 'itemCode', width: 80, align: 'center'},
+                {title: '档位', field: 'gradeLevel', width: 90, align: 'center', templet: function (d) {
+                        return ['', '', '关注', '超标', '严重超标'][d.gradeLevel] || '';
+                    }},
+                {title: '停水/复测', width: 110, align: 'center', templet: function (d) {
+                        return (d.needStop === 1 ? '停水 ' : '') + (d.needRetest === 1 ? '复测' : '');
+                    }},
+                {title: '供水户/联系人', minWidth: 200, templet: function (d) {
+                        return d.accountName ? (d.accountName + ' / ' + d.contactName + ' ' + d.contactPhone) : '—';
+                    }},
+                {title: '当前处置', width: 190, align: 'center', templet: '#rep-step'},
+                {title: '上报时刻', field: 'createTime', width: 170, align: 'center'},
+                {title: '操作', width: 110, align: 'center', fixed: 'right', toolbar: '#rep-bar'}
+            ]]
+        });
+        form.on('submit(rep-query)', function (data) {
+            table.reload('rep-table', {where: data.field, page: {curr: 1}});
+            return false;
+        });
+        table.on('tool(rep-table)', function (obj) {
+            if (obj.event === 'open') {
+                window.location.href = MODULE_PATH + 'reportDetail/' + obj.data.id;
+            }
+        });
+    });
+</script>
+</body>
+</html>

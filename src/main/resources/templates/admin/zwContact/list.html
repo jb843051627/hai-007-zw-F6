@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('供水户联系人名册')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <span style="color:#999;font-size:12px;">
+            反映到供水户名下时从这里取人，取号随上报单钉成快照；名册之后订正（停用留痕）不影响已落快照——
+            "当时联系不上的是那个号"在旧单上仍说得清。
+        </span>
+        <button class="pear-btn pear-btn-primary pear-btn-md" id="btn-add" style="margin-left:12px;">新增联系人</button>
+        <a class="pear-btn pear-btn-md" th:href="@{/zwAnomaly/reportView}">回上报台账</a>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="c-table" lay-filter="c-table"></table>
+    </div>
+</div>
+
+<script type="text/html" id="c-status">
+    {{#  if(d.status == 0){ }}<span class="layui-badge layui-bg-green">可用</span>
+    {{#  } else { }}<span class="layui-badge">已停用</span>{{#  } }}
+</script>
+<script type="text/html" id="c-bar">
+    <button class="pear-btn pear-btn-xs pear-btn-primary" lay-event="edit">订正</button>
+    {{#  if(d.status == 0){ }}
+    <button class="pear-btn pear-btn-xs pear-btn-warming" lay-event="disable">停用留痕</button>
+    {{#  } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'jquery', 'layer'], function () {
+        let table = layui.table, $ = layui.jquery, layer = layui.layer;
+        let PATH = rootPath + '/zwContact/';
+        table.render({
+            elem: '#c-table', url: PATH + 'listData', page: true, method: 'get', skin: 'line',
+            cols: [[
+                {title: 'ID', field: 'id', hide: true},
+                {title: '点位', field: 'siteNo', width: 100, align: 'center'},
+                {title: '供水户编号', field: 'accountNo', width: 130, align: 'center'},
+                {title: '供水户名称', field: 'accountName', minWidth: 180},
+                {title: '联系人', field: 'contactName', width: 110, align: 'center'},
+                {title: '电话', field: 'contactPhone', width: 150, align: 'center'},
+                {title: '情形', field: 'status', width: 90, align: 'center', templet: '#c-status'},
+                {title: '备注', field: 'remark', minWidth: 160},
+                {title: '操作', width: 170, align: 'center', toolbar: '#c-bar'}
+            ]]
+        });
+
+        function esc(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+        function formHtml(d) {
+            d = d || {};
+            return '<div style="padding:16px 20px;">'
+                + '<div class="layui-form-item"><label class="layui-form-label">点位</label><div class="layui-input-block">'
+                + '<input class="layui-input" id="f-site" style="width:240px;" value="' + esc(d.siteNo) + '"></div></div>'
+                + '<div class="layui-form-item"><label class="layui-form-label">供水户编号</label><div class="layui-input-block">'
+                + '<input class="layui-input" id="f-ano" style="width:240px;" value="' + esc(d.accountNo) + '"></div></div>'
+                + '<div class="layui-form-item"><label class="layui-form-label">供水户名称</label><div class="layui-input-block">'
+                + '<input class="layui-input" id="f-aname" style="width:240px;" value="' + esc(d.accountName) + '"></div></div>'
+                + '<div class="layui-form-item"><label class="layui-form-label">联系人</label><div class="layui-input-block">'
+                + '<input class="layui-input" id="f-cname" style="width:240px;" value="' + esc(d.contactName) + '"></div></div>'
+                + '<div class="layui-form-item"><label class="layui-form-label">电话</label><div class="layui-input-block">'
+                + '<input class="layui-input" id="f-phone" style="width:240px;" value="' + esc(d.contactPhone) + '"></div></div>'
+                + '<div class="layui-form-item"><label class="layui-form-label">情形</label><div class="layui-input-block">'
+                + '<select id="f-status" style="width:240px;"><option value="0">可用</option><option value="1">停用</option></select></div></div>'
+                + '<div class="layui-form-item"><label class="layui-form-label">备注</label><div class="layui-input-block">'
+                + '<input class="layui-input" id="f-remark" style="width:360px;" value="' + esc(d.remark) + '"></div></div>'
+                + '</div>';
+        }
+        function collect(id) {
+            return {
+                id: id || null,
+                siteNo: $('#f-site').val(), accountNo: $('#f-ano').val(), accountName: $('#f-aname').val(),
+                contactName: $('#f-cname').val(), contactPhone: $('#f-phone').val(),
+                status: $('#f-status').val(), remark: $('#f-remark').val()
+            };
+        }
+        $('#btn-add').on('click', function () {
+            layer.open({
+                type: 1, title: '新增联系人', area: ['480px', '470px'], content: formHtml(null),
+                btn: ['保存', '取消'],
+                yes: function (idx) {
+                    $.post(PATH + 'add', collect(null), function (res) {
+                        layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2, time: 900},
+                            () => { if (res.code === 200) { layer.close(idx); table.reload('c-table'); } });
+                    });
+                }
+            });
+        });
+        table.on('tool(c-table)', function (obj) {
+            if (obj.event === 'edit') {
+                layer.open({
+                    type: 1, title: '订正联系人（不影响已落单快照）', area: ['480px', '470px'],
+                    content: formHtml(obj.data),
+                    btn: ['保存', '取消'],
+                    yes: function (idx) {
+                        $.post(PATH + 'edit', collect(obj.data.id), function (res) {
+                            layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2, time: 900},
+                                () => { if (res.code === 200) { layer.close(idx); table.reload('c-table'); } });
+                        });
+                    }
+                });
+                setTimeout(function () { $('#f-status').val(String(obj.data.status)); }, 50);
+            }
+            if (obj.event === 'disable') {
+                layer.confirm('停用后留痕不删除，反映页不再取此号；旧单快照不变。确认停用？', function (idx) {
+                    $.post(PATH + 'disable', {id: obj.data.id}, function (res) {
+                        layer.close(idx);
+                        layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2}, () => table.reload('c-table'));
+                    });
+                });
+            }
+        });
+    });
+</script>
+</body>
+</html>

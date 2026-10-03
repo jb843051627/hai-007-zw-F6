@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('检测数据批次下钻核实')"/>
+    <style>
+        .kv {margin-right:18px;font-size:13px;color:#666;}
+        .kv b{color:#333;}
+        .raw-box {font-family:Menlo,Consolas,monospace;font-size:12px;color:#444;background:#fafafa;border:1px dashed #ddd;border-radius:4px;padding:5px 8px;word-break:break-all;}
+        .rule-box {font-size:12px;color:#555;}
+        .lock-box {border:1px solid #16b777;background:#f2fbf6;color:#12865b;border-radius:6px;padding:10px 14px;margin-bottom:12px;}
+        .block-box {border:1px solid #FF5722;background:#fff5f3;color:#a92d0b;border-radius:6px;padding:10px 14px;margin-bottom:12px;}
+    </style>
+</head>
+<body class="pear-container">
+<th:block th:with="locked=${batch != null and batch.verifyResult != null}, pass=${batch != null and batch.verifyResult == 1}">
+
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">
+        批次 <span th:text="${batch?.batchNo}"></span>
+        <span th:if="${batch != null and batch.blocked == 1}" class="layui-badge">整批拦在库外</span>
+        <span th:if="${batch != null and batch.blocked == 0}" class="layui-badge layui-bg-blue">已入正式账</span>
+        <span th:if="${batch != null and batch.verifyResult == 1}" class="layui-badge layui-bg-green">核实成·已归档</span>
+        <span th:if="${batch != null and batch.verifyResult == 2}" class="layui-badge">核实不成·只读</span>
+        <span th:if="${batch != null and batch.verifyResult == null}" class="layui-badge layui-bg-gray">未核实</span>
+    </div>
+    <div class="layui-card-body">
+        <div>
+            <span class="kv">原始文件：<b th:text="${batch?.fileName}"></b></span>
+            <span class="kv">数据行：<b th:text="${batch?.totalRows}"></b></span>
+            <span class="kv">导入时间：<b th:text="${T(com.fc.v2.service.zw.ImpSampleTime).format(batch?.createTime)}"></b></span>
+        </div>
+        <div style="margin-top:6px;" th:if="${batch != null and batch.verifyResult != null}">
+            <span class="kv">核实结论：<b th:text="${batch.verifyResult == 1 ? '核实成（已归档）' : '核实不成'}"></b></span>
+            <span class="kv">核实人：<b th:text="${batch.verifyBy}"></b></span>
+            <span class="kv">核实时间：<b th:text="${T(com.fc.v2.service.zw.ImpSampleTime).format(batch.verifyTime)}"></b></span>
+        </div>
+        <div style="margin-top:6px;" th:if="${batch != null and batch.verifyReason != null and !batch.verifyReason.isEmpty()}">
+            <span class="kv">核实原因/说明：<b th:text="${batch.verifyReason}"></b></span>
+        </div>
+        <div style="margin-top:6px;" th:if="${batch != null and batch.blocked == 1}">
+            <div class="block-box" th:text="${'拦截说明：' + batch.blockMsg}"></div>
+        </div>
+        <div th:if="${locked}" class="lock-box">
+            该批次已核实并归只读状态：原始行、定级、复核与核实结论原样锁住，不能再改；
+            系统日志里可按上述核实人/核实时间翻到是哪一次写下的。
+        </div>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">逐行并排：原始行 · 规则条文 · 校验/复核/核实结论</div>
+    <div class="layui-card-body">
+        <table class="layui-table" style="table-layout:fixed;">
+            <colgroup>
+                <col style="width:50px;"><col style="width:240px;"><col style="width:220px;">
+                <col style="width:260px;"><col style="width:150px;"><col style="width:120px;">
+            </colgroup>
+            <thead>
+            <tr>
+                <th>行次</th><th>原始行（原样）</th><th>校验与申报旗标</th>
+                <th>定级所依规则条文</th><th>等级/读数/时间</th><th>确认与核实</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${rows}">
+                <td th:text="${r.rowNo}"></td>
+                <td>
+                    <div class="raw-box" th:text="${r.rawLine}"></div>
+                </td>
+                <td>
+                    <span th:if="${r.checkStatus == 1}" class="layui-badge layui-bg-green">格式合格</span>
+                    <span th:if="${r.checkStatus == 2}" class="layui-badge">异常</span>
+                    <div style="margin-top:4px;font-size:12px;color:#666;" th:text="${r.checkMsg}"></div>
+                    <div style="margin-top:4px;font-size:12px;">
+                        <span th:text="${r.validFlag == 1 ? '有效' : (r.validFlag == 0 ? '无效' : '')}"></span> ·
+                        <span th:text="${r.reviewedFlag == 1 ? '已复核' : (r.reviewedFlag == 0 ? '未复核' : '')}"></span>
+                    </div>
+                    <div style="margin-top:4px;font-size:12px;color:#888;"
+                         th:if="${r.confirmBy != null and !r.confirmBy.isEmpty()}"
+                         th:text="${'异常确认：' + r.confirmBy + ' ' + T(com.fc.v2.service.zw.ImpSampleTime).format(r.confirmTime)}"></div>
+                </td>
+                <td>
+                    <th:block th:with="rule=${ruleOfRow[r.id]}">
+                        <div class="rule-box" th:if="${rule != null}">
+                            <div><b th:text="${rule.ruleCode}"></b> <span th:text="${rule.ruleName}"></span></div>
+                            <div th:text="${'类别：' + rule.sampleType + '；关注≤' + rule.th1Max
+                                + '；超标≤' + rule.th2Max + '；严重≤' + (rule.th3Max == null ? '不设' : rule.th3Max)}"></div>
+                            <div th:if="${rule.effStart != null}"
+                                  th:text="${'生效：' + T(com.fc.v2.service.zw.ImpSampleTime).formatDay(rule.effStart)
+                                + ' 至 ' + (rule.effEnd == null ? '长期现行' : T(com.fc.v2.service.zw.ImpSampleTime).formatDay(rule.effEnd))
+                                + (rule.status == 1 ? '（已让位）' : '')}"></div>
+                            <div th:if="${rule.effStart == null}" th:text="${'生效：未注明'}"></div>
+                            <div style="color:#12865b;" th:if="${r.declaredRuleCode != null && r.ruleCode != null && r.declaredRuleCode.equals(r.ruleCode)}">
+                                申报代号与库里钉死的线代号逐字一致
+                            </div>
+                        </div>
+                        <div class="rule-box" style="color:#999;" th:if="${rule == null}">无定级条文（硬错/无可用标准）</div>
+                    </th:block>
+                </td>
+                <td style="font-size:12px;">
+                    <div th:text="${r.qty == null ? '' : r.qty.toPlainString()}"></div>
+                    <div th:text="${T(com.fc.v2.service.zw.ImpSampleTime).format(r.testAt)}"></div>
+                    <div th:text="${r.gradeLevel == null ? '无可用标准' : T(com.fc.v2.service.zw.WaterGrade).gradeText(r.gradeLevel)}"></div>
+                </td>
+                <td style="font-size:12px;">
+                    <div th:if="${r.verifyResult == 1}" class="layui-badge layui-bg-green">核实成·已归档</div>
+                    <div th:if="${r.verifyResult == 2}" class="layui-badge">核实不成</div>
+                    <div th:if="${r.verifyResult == null}" class="layui-badge layui-bg-gray">未核实</div>
+                    <div style="margin-top:4px;" th:if="${r.verifyBy != null}" th:text="${r.verifyBy}"></div>
+                    <div style="margin-top:2px;color:#888;" th:if="${r.verifyTime != null}"
+                         th:text="${T(com.fc.v2.service.zw.ImpSampleTime).format(r.verifyTime)}"></div>
+                    <div style="margin-top:4px;color:#a92d0b;" th:if="${r.verifyResult == 2 && r.verifyReason != null}"
+                         th:text="${r.verifyReason}"></div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="layui-card" th:if="${!locked && batch != null}">
+    <div class="layui-card-header" style="font-weight:600;">批次核实（一批只准一次，落笔即只读）</div>
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">核实结论</label>
+                <div class="layui-input-block" style="max-width:520px;">
+                    <input type="radio" name="verifyResult" value="1" title="核实成（整批归档，原样锁死）" checked>
+                    <input type="radio" name="verifyResult" value="2" title="核实不成（必须写明原因，同样归只读）">
+                </div>
+            </div>
+            <div class="layui-form-item">
+                <label class="layui-form-label">原因/说明</label>
+                <div class="layui-input-block" style="max-width:640px;">
+                    <textarea name="reason" placeholder="核实不成必填原因；核实成可留归档说明" class="layui-textarea" style="height:90px;"></textarea>
+                </div>
+            </div>
+            <div class="layui-form-item">
+                <div class="layui-input-block">
+                    <button type="button" class="pear-btn pear-btn-primary pear-btn-md" id="btn-verify"
+                            shiro:hasPermission="zw:zwImpRow:verify">
+                        <i class="layui-icon layui-icon-ok"></i> 落笔核实
+                    </button>
+                    <span style="margin-left:12px;color:#999;font-size:12px;">
+                        批内异常行须先逐条确认；核实成归档后不可再改，重导也不会翻出重复核。
+                    </span>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<th:block th:include="include :: footer"/>
+<script th:inline="javascript">
+    layui.use(['form', 'jquery', 'layer'], function () {
+        let form = layui.form, $ = layui.jquery, layer = layui.layer;
+        let BATCH_NO = [[${batch?.batchNo}]];
+
+        $('#btn-verify').on('click', function () {
+            let result = $('input[name="verifyResult"]:checked').val();
+            let reason = $('textarea[name="reason"]').val();
+            if (result === '2' && (!reason || !reason.trim())) {
+                layer.msg('核实不成必须写明原因', {icon: 2});
+                return;
+            }
+            layer.confirm('一批只能核实一次，落笔即归只读，确定继续？', {icon: 3, title: '批次核实'}, function (idx) {
+                layer.close(idx);
+                $.ajax({
+                    url: rootPath + '/zwImpRow/verify',
+                    type: 'post',
+                    data: {batchNo: BATCH_NO, result: result, reason: reason},
+                    success: function (res) {
+                        layer.alert(res.msg, {icon: res.code === 200 ? 1 : 2, title: '核实结果'}, function (i) {
+                            layer.close(i);
+                            if (res.code === 200) {
+                                window.location.reload();
+                            }
+                        });
+                    }
+                });
+            });
+        });
+    });
+</script>
+</th:block>
+</body>
+</html>

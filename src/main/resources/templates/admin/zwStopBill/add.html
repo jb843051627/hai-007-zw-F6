@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('业务科提出停供申请')"/>
+</head>
+<body>
+<form class="layui-form">
+    <div class="mainBox">
+        <div class="main-container">
+            <div class="layui-form-item">
+                <label class="layui-form-label">水源点代号</label>
+                <div class="layui-input-block">
+                    <select name="siteNo" lay-verify="required" lay-search="">
+                        <option value="">请选择在用底档（只认代号）</option>
+                        <option th:each="s : ${sites}" th:value="${s.siteNo}"
+                                th:text="${s.siteNo} + '｜' + ${s.siteName}"></option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">停水事由</label>
+                <div class="layui-input-block">
+                    <select name="reason" lay-verify="required">
+                        <option value="">请选择</option>
+                        <option value="DEPLETED">水源枯竭</option>
+                        <option value="OVER_LIMIT">指标连续超标</option>
+                        <option value="REPAIR">水厂检修</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">替代供水方案</label>
+                <div class="layui-input-block">
+                    <textarea name="altPlan" lay-verify="required" class="layui-textarea"
+                              placeholder="停水后的替代供水方案（三样要件之一，缺一当场挡回）"></textarea>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">经办意见</label>
+                <div class="layui-input-block">
+                    <textarea name="opinion" class="layui-textarea" placeholder="可留空"></textarea>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">用户公告</label>
+                <div class="layui-input-block">
+                    <div class="layui-form-mid" style="line-height: 20px;">
+                        提交后按事由从名录自动带出落版，本页不另请人抄录
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="bottom">
+        <div class="button-container">
+            <button type="submit" class="layui-btn layui-btn-normal layui-btn-sm" lay-submit lay-filter="stop-bill-save">
+                <i class="layui-icon layui-icon-ok"></i>
+                提交到水质科核实
+            </button>
+            <button type="reset" class="layui-btn layui-btn-primary layui-btn-sm">
+                <i class="layui-icon layui-icon-refresh"></i>
+                重置
+            </button>
+        </div>
+    </div>
+</form>
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['form', 'jquery', 'layer'], function () {
+        let form = layui.form;
+        let $ = layui.jquery;
+        let layer = layui.layer;
+
+        form.on('submit(stop-bill-save)', function (data) {
+            $.ajax({
+                url: rootPath + '/zwStopBill/submit',
+                type: 'post',
+                data: data.field,
+                success: function (res) {
+                    if (res.code === 200) {
+                        layer.msg('已提出，单号 ' + res.data.billNo
+                            + (res.data.yearSeq >= 2 ? '（当年第' + res.data.yearSeq + '份，已单独点名）' : ''),
+                            {icon: 1}, function () {
+                                let idx = parent.layer.getFrameIndex(window.name);
+                                parent.layer.close(idx);
+                                parent.layui.table.reload('stop-bill-table');
+                            });
+                    } else {
+                        layer.msg(res.msg || '提交未受理', {icon: 2});
+                    }
+                }
+            });
+            return false;
+        });
+    });
+</script>

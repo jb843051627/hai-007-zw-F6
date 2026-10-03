@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('停供/限供申请签核台账')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">签核单号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="billNo" placeholder="点位代号-年-当年序" class="layui-input">
+                </div>
+                <label class="layui-form-label">水源点代号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="siteNo" class="layui-input">
+                </div>
+                <label class="layui-form-label">报批情形</label>
+                <div class="layui-input-inline">
+                    <select name="status" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="0">在核</option>
+                        <option value="1">已核讫</option>
+                        <option value="2">已终止</option>
+                    </select>
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="stop-bill-query">
+                    <i class="layui-icon layui-icon-search"></i>
+                    查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i>
+                    重置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="stop-bill-table" lay-filter="stop-bill-table"></table>
+    </div>
+</div>
+</body>
+
+<script type="text/html" id="stop-bill-toolbar">
+    <button shiro:hasPermission="zw:zwStopBill:add" class="pear-btn pear-btn-primary pear-btn-md" lay-event="add">
+        <i class="layui-icon layui-icon-add-1"></i>
+        提出停供申请
+    </button>
+</script>
+
+<script type="text/html" id="stop-bill-bar">
+    <a class="pear-btn pear-btn-normal pear-btn-sm" lay-event="detail">
+        <i class="layui-icon layui-icon-about"></i> 签核倒查
+    </a>
+    {{#  if(d.status == 0){ }}
+    <button shiro:hasPermission="zw:zwStopBill:add" class="pear-btn pear-btn-warming pear-btn-sm" lay-event="withdraw">
+        <i class="layui-icon layui-icon-return"></i> 撤回
+    </button>
+    {{#  } }}
+</script>
+
+<script type="text/html" id="stop-bill-status">
+    {{#  if(d.status == 0){ }}<span class="layui-badge layui-bg-orange">在核</span>
+    {{#  } else if(d.status == 1){ }}<span class="layui-badge layui-bg-green">已核讫</span>
+    {{#  } else if(d.status == 2){ }}<span class="layui-badge">已终止</span>
+    {{#  } }}
+</script>
+
+<script type="text/html" id="stop-bill-reason">
+    {{#  if(d.reason == 'DEPLETED'){ }}水源枯竭
+    {{#  } else if(d.reason == 'OVER_LIMIT'){ }}指标连续超标
+    {{#  } else if(d.reason == 'REPAIR'){ }}水厂检修
+    {{#  } }}
+</script>
+
+<script type="text/html" id="stop-bill-node">
+    {{#  if(d.nodeNo == 0){ }}业务科提出
+    {{#  } else if(d.nodeNo == 1){ }}水质科核实
+    {{#  } else if(d.nodeNo == 2){ }}调度中心评估
+    {{#  } else if(d.nodeNo == 3){ }}调度主管批准
+    {{#  } }}
+</script>
+
+<script type="text/html" id="stop-bill-seq">
+    {{ d.yearSeq }}
+    {{#  if(d.yearSeq >= 2){ }}<span class="layui-badge layui-bg-blue">当年第{{ d.yearSeq }}份</span>{{#  } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery', 'layer'], function () {
+        let table = layui.table;
+        let form = layui.form;
+        let $ = layui.jquery;
+        let layer = layui.layer;
+
+        let MODULE_PATH = rootPath + "/zwStopBill/";
+        let cols = [
+            [
+                {title: 'ID', field: 'id', align: 'center', hide: true},
+                {title: '签核单号', field: 'billNo', align: 'center', width: 170},
+                {title: '水源点代号', field: 'siteNo', align: 'center', width: 110},
+                {title: '当年序', field: 'yearSeq', align: 'center', width: 130, templet: '#stop-bill-seq'},
+                {title: '停水事由', field: 'reason', align: 'center', width: 130, templet: '#stop-bill-reason'},
+                {title: '当前所在关', field: 'nodeNo', align: 'center', width: 140, templet: '#stop-bill-node'},
+                {title: '轮次', field: 'roundNo', align: 'center', width: 70},
+                {title: '报批情形', field: 'status', align: 'center', width: 100, templet: '#stop-bill-status'},
+                {title: '用户公告（名录带出）', field: 'noticeText', align: 'center', minWidth: 260},
+                {title: '提出时间', field: 'createTime', align: 'center', width: 170},
+                {title: '操作', toolbar: '#stop-bill-bar', align: 'center', width: 200, fixed: 'right'}
+            ]
+        ];
+
+        table.render({
+            elem: '#stop-bill-table',
+            url: MODULE_PATH + 'list',
+            page: true,
+            method: 'get',
+            cols: cols,
+            skin: 'line',
+            toolbar: '#stop-bill-toolbar',
+            defaultToolbar: ['filter', 'print', 'exports']
+        });
+
+        table.on('toolbar(stop-bill-table)', function (obj) {
+            if (obj.event === 'add') {
+                layer.open({
+                    type: 2, title: '业务科提出停供申请', area: ['720px', '560px'],
+                    content: MODULE_PATH + 'add'
+                });
+            }
+        });
+
+        table.on('tool(stop-bill-table)', function (obj) {
+            if (obj.event === 'detail') {
+                layer.open({
+                    type: 2, title: '签核倒查 ' + obj.data.billNo, area: ['960px', '680px'],
+                    content: MODULE_PATH + 'detail/' + obj.data.id
+                });
+            } else if (obj.event === 'withdraw') {
+                layer.prompt({title: '撤回说明（单到此为止，留痕备查）', formType: 2}, function (reason, idx) {
+                    $.ajax({
+                        url: MODULE_PATH + 'withdraw',
+                        type: 'post',
+                        data: {id: obj.data.id, comment: reason},
+                        success: function (res) {
+                            if (res.code === 200) {
+                                layer.close(idx);
+                                layer.msg('已撤回，单子锁死', {icon: 1});
+                                table.reload('stop-bill-table');
+                            } else {
+                                layer.msg(res.msg || '操作未生效', {icon: 2});
+                            }
+                        }
+                    });
+                });
+            }
+        });
+
+        form.on('submit(stop-bill-query)', function (data) {
+            table.reload('stop-bill-table', {where: data.field, page: {curr: 1}});
+            return false;
+        });
+    });
+</script>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('停供申请签核倒查')"/>
+    <style>
+        .gate-box {border:1px solid #e2e2e2;border-radius:6px;padding:12px 14px;margin-bottom:12px;background:#fff;}
+        .gate-current {border-color:#FFB800;box-shadow:0 0 0 2px rgba(255,184,0,.15);}
+        .gate-passed {border-color:#16b777;}
+        .gate-line {border-top:1px dashed #e8e8e8;margin-top:8px;padding-top:8px;font-size:13px;color:#555;}
+        .gate-line table {width:100%;}
+        .gate-line td {padding:3px 6px;vertical-align:top;}
+        .void-box {border:1px dashed #c1c1c1;background:#fafafa;color:#888;border-radius:6px;padding:10px 14px;}
+        .kv {margin-right:18px;font-size:13px;color:#666;}
+        .kv b{color:#333;}
+    </style>
+</head>
+<body class="pear-container">
+<th:block th:with="bill=${view.bill}, running=${bill.status == 0}">
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">
+        <span th:text="${bill.billNo}"></span>
+        <span class="layui-badge layui-bg-orange" th:if="${bill.status == 0}">在核</span>
+        <span class="layui-badge layui-bg-green" th:if="${bill.status == 1}">已核讫（水源点已退役）</span>
+        <span class="layui-badge" th:if="${bill.status == 2}">已终止</span>
+        <span class="layui-badge layui-bg-blue" th:if="${bill.roundNo > 1}">第 <span th:text="${bill.roundNo}"></span> 轮（前序轮已作废）</span>
+    </div>
+    <div class="layui-card-body">
+        <div>
+            <span class="kv">水源点代号：<b th:text="${bill.siteNo}"></b></span>
+            <span class="kv">当年第 <b th:text="${bill.yearSeq}"></b> 份申请</span>
+            <span class="kv">停水事由：<b th:text="${bill.reason == 'DEPLETED' ? '水源枯竭' : (bill.reason == 'OVER_LIMIT' ? '指标连续超标' : '水厂检修')}"></b></span>
+        </div>
+        <div style="margin-top:6px;">
+            <span class="kv">替代供水方案：<b th:text="${bill.altPlan}"></b></span>
+        </div>
+        <div style="margin-top:6px;">
+            <span class="kv">用户公告（名录带出）：<b th:text="${bill.noticeText}"></b></span>
+        </div>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">三道关口（枚数由签核台账点算，页面无代填格）</div>
+    <div class="layui-card-body">
+        <th:block th:each="g : ${view.gates}">
+            <div class="gate-box"
+                 th:classappend="${g.current} ? ' gate-current' : (g.passed ? ' gate-passed' : '')">
+                <div>
+                    <b th:text="${g.node + 1} + '、' + ${g.nodeName}"></b>
+                    <span class="layui-badge layui-bg-gray" style="margin-left:8px;">
+                        已落名 <span th:text="${g.signed}"></span>/<span th:text="${g.need}"></span>
+                    </span>
+                    <span class="layui-badge layui-bg-green" th:if="${g.passed}">已过</span>
+                    <span class="layui-badge layui-bg-orange" th:if="${g.current}">本口在核</span>
+                </div>
+                <div class="gate-line" th:if="${!g.lines.isEmpty()}">
+                    <table>
+                        <tr th:each="ln : ${g.lines}">
+                            <td style="width:160px;" th:text="${#dates.format(ln.signTime,'yyyy-MM-dd HH:mm:ss')}"></td>
+                            <td style="width:110px;" th:text="${@stopChainRoleLabel.label(ln.signRole)}"></td>
+                            <td style="width:110px;" th:text="${ln.signer}"></td>
+                            <td style="width:90px;"
+                                th:text="${ln.action == 'AGREE' ? '同意' : (ln.action == 'DISAGREE' ? '不同意' : (ln.action == 'SENDBACK' ? '主管打回' : '撤回'))}"></td>
+                            <td th:text="${ln.opinion}"></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </th:block>
+    </div>
+</div>
+
+<div class="layui-card" th:if="${!view.voidedLines.isEmpty()}">
+    <div class="layui-card-header" style="font-weight:600;color:#999;">作废旧轮签核（只留痕，不计入当前轮点算，与补签不摆在一起）</div>
+    <div class="layui-card-body">
+        <div class="void-box">
+            <table style="width:100%;">
+                <tr th:each="ln : ${view.voidedLines}">
+                    <td style="width:70px;" th:text="'第' + ${ln.roundNo} + '轮'"></td>
+                    <td style="width:160px;" th:text="${#dates.format(ln.signTime,'yyyy-MM-dd HH:mm:ss')}"></td>
+                    <td style="width:120px;" th:text="${@stopChainRoleLabel.label(ln.signRole)}"></td>
+                    <td style="width:110px;" th:text="${ln.signer}"></td>
+                    <td style="width:90px;"
+                        th:text="${ln.action == 'AGREE' ? '同意' : (ln.action == 'DISAGREE' ? '不同意' : (ln.action == 'SENDBACK' ? '主管打回' : '撤回'))}"></td>
+                    <td th:text="${ln.opinion}"></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="layui-card" th:if="${running}">
+    <div class="layui-card-body" shiro:hasPermission="zw:zwStopBill:agree">
+        <!-- 第二道：水质科核实 -->
+        <th:block th:if="${bill.nodeNo == 1}">
+            <button class="pear-btn pear-btn-primary pear-btn-md" onclick="act('agree','', '水质核实通过')">水质科核实通过</button>
+            <button class="pear-btn pear-btn-danger pear-btn-md" onclick="act('disagree','')">写明不同意（单到此为止）</button>
+        </th:block>
+        <!-- 第三道：两名评估人各评各的 -->
+        <th:block th:if="${bill.nodeNo == 2}">
+            <button class="pear-btn pear-btn-primary pear-btn-md" onclick="act('agree','DISP_QTY')">水量调配评估：同意</button>
+            <button class="pear-btn pear-btn-danger pear-btn-md" onclick="act('disagree','DISP_QTY')">水量调配：不同意</button>
+            <button class="pear-btn pear-btn-primary pear-btn-md" onclick="act('agree','DISP_NET')">管网影响评估：同意</button>
+            <button class="pear-btn pear-btn-danger pear-btn-md" onclick="act('disagree','DISP_NET')">管网影响：不同意</button>
+            <div class="layui-form-mid" style="display:block;margin-top:8px;color:#999;">
+                两人各评各的、互不替签；只到一枚单仍停在本口，两枚点齐才进主管批准。
+            </div>
+        </th:block>
+        <!-- 第四道：主管批准 / 打回 / 不同意 -->
+        <th:block th:if="${bill.nodeNo == 3}">
+            <button class="pear-btn pear-btn-primary pear-btn-md" onclick="act('agree','', '准予停供')">主管批准（水源点即退役）</button>
+            <button class="pear-btn pear-btn-warming pear-btn-md" onclick="act('sendBack','')">理由不符，打回（从水质科重新攒）</button>
+            <button class="pear-btn pear-btn-danger pear-btn-md" onclick="act('disagree','')">写明不同意（单到此为止）</button>
+        </th:block>
+    </div>
+</div>
+</th:block>
+<th:block th:include="include :: footer"/>
+<script th:inline="javascript">
+    let BILL_ID = [[${view.bill.id}]];
+    layui.use(['jquery', 'layer'], function () {
+        let $ = layui.jquery;
+        let layer = layui.layer;
+        let MODULE_PATH = rootPath + '/zwStopBill/';
+
+        window.act = function (eventName, signRole, preset) {
+            let needOpinion = (eventName === 'disagree' || eventName === 'sendBack');
+            let doPost = function (comment) {
+                $.ajax({
+                    url: MODULE_PATH + eventName,
+                    type: 'post',
+                    data: {id: BILL_ID, signRole: signRole, comment: comment || preset || ''},
+                    success: function (res) {
+                        if (res.code === 200) {
+                            layer.msg('已落账', {icon: 1, time: 800}, function () {
+                                // 关口与枚数只认重新点算那一份：整页重取，不就地改数
+                                location.reload();
+                            });
+                        } else {
+                            layer.msg(res.msg || '本笔未收受', {icon: 2});
+                        }
+                    }
+                });
+            };
+            if (needOpinion) {
+                let title = eventName === 'sendBack' ? '打回理由（旧轮作废，从第二道重攒）' : '不同意意见（单到此为止）';
+                layer.prompt({title: title, formType: 2}, function (text, idx) {
+                    if (!text || !text.trim()) { layer.msg('须写明意见', {icon: 2}); return; }
+                    layer.close(idx);
+                    doPost(text);
+                });
+            } else {
+                layer.prompt({title: '签核意见（可留空）', formType: 2, value: preset || ''}, function (text, idx) {
+                    layer.close(idx);
+                    doPost(text);
+                });
+            }
+        };
+    });
+</script>

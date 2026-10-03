@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('复测环节倒查')"/>
+    <style>
+        .node-box {border:1px solid #e2e2e2;border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafafa;}
+        .node-cur {border-color:#FFB800;background:#fff;}
+        .node-done {border-color:#16b777;}
+        .node-veto {border-color:#FF5722;}
+        .muted {color:#999;font-size:12px;}
+    </style>
+</head>
+<body class="pear-container" th:if="${view != null}">
+<th:block th:with="rt=${view.retest}">
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">
+        复测单 <span th:text="${rt.retestNo}"></span>（第 <span th:text="${rt.roundNo}"></span> 轮）
+        <span class="layui-badge layui-bg-gray" th:if="${rt.status == 0 || rt.status == 1}">填报中</span>
+        <span class="layui-badge layui-bg-green" th:if="${rt.status == 2}">全环走完</span>
+        <span class="layui-badge" th:if="${rt.status == 3}">否决卡停</span>
+        <a class="pear-btn pear-btn-xs pear-btn-normal" style="float:right;"
+           th:href="@{/zwAnomaly/reportDetail/{id}(id=${rt.reportId})}">回上报单全链</a>
+    </div>
+    <div class="layui-card-body">
+        <th:block th:each="ln : ${view.nodes}">
+            <div class="node-box"
+                 th:classappend="${ln.node.status == 2} ? ' node-veto' : (ln.node.status == 1 ? ' node-done' : (ln.writableByMe ? ' node-cur' : ''))">
+                <b th:text="${ln.node.nodeNo + 1} + '. ' + (${ln.node.nodeNo == 0 ? '采样复测' : (ln.node.nodeNo == 1 ? '化验复核' : (ln.node.nodeNo == 2 ? '水质科判定' : '主管封卷'))})"></b>
+                <span class="layui-badge layui-bg-gray" th:text="'经办人：' + ${ln.node.ownerLogin}"></span>
+                <span class="layui-badge layui-bg-green" th:if="${ln.node.status == 1}">已提交·只读</span>
+                <span class="layui-badge" th:if="${ln.node.status == 2}">否决</span>
+                <span class="layui-badge layui-bg-orange" th:if="${ln.node.status == 0}">待填</span>
+
+                <table style="margin-top:8px;width:100%;font-size:13px;" th:if="${ln.node.status != 0}">
+                    <tr>
+                        <td style="width:100px;" class="muted">检测项目</td><td th:text="${ln.node.testItem}"></td>
+                        <td style="width:100px;" class="muted">检测数值</td><td th:text="${ln.node.testQty}"></td>
+                        <td style="width:100px;" class="muted">检测时间</td>
+                        <td th:text="${#dates.format(ln.node.testAt,'yyyy-MM-dd HH:mm:ss')}"></td>
+                    </tr>
+                    <tr>
+                        <td class="muted">复核结论</td>
+                        <td th:text="${ln.node.conclusion == 'PASS' ? '确认通过' : '否决'}"></td>
+                        <td class="muted">提交人/时刻</td>
+                        <td colspan="3" th:text="${ln.node.fillBy} + ' ' + ${#dates.format(ln.node.fillTime,'yyyy-MM-dd HH:mm:ss')}"></td>
+                    </tr>
+                    <tr th:if="${ln.node.opinion != null}"><td class="muted">意见</td><td colspan="5" th:text="${ln.node.opinion}"></td></tr>
+                </table>
+
+                <form class="layui-form" style="margin-top:8px;" th:if="${ln.node.status == 0 && ln.writableByMe}" onsubmit="return false;">
+                    <div class="muted" th:if="${ln.node.nodeNo > 0}">
+                        本环须照抄上一环：项目 <b th:text="${ln.node.prevItem}"></b>、数值 <b th:text="${ln.node.prevQty}"></b>、
+                        时间 <b th:text="${#dates.format(ln.node.prevTestAt,'yyyy-MM-dd HH:mm:ss')}"></b>
+                    </div>
+                    <div style="margin-top:6px;">
+                        <input class="layui-input" style="width:150px;display:inline-block;" placeholder="检测项目" data-k="testItem">
+                        <input class="layui-input" style="width:120px;display:inline-block;" placeholder="检测数值" data-k="testQty">
+                        <input class="layui-input" style="width:190px;display:inline-block;" placeholder="检测时间" data-k="testAt">
+                        <select style="width:130px;display:inline-block;" data-k="conclusion">
+                            <option value="PASS">确认通过</option>
+                            <option value="FAIL">否决（卡停）</option>
+                        </select>
+                    </div>
+                    <textarea class="layui-textarea" style="width:560px;height:60px;margin-top:6px;" placeholder="本环节意见（可空）" data-k="opinion"></textarea>
+                    <button class="pear-btn pear-btn-primary pear-btn-sm" style="margin-top:6px;"
+                            th:attr="data-retest=${rt.id}" onclick="fillNode(this)">提交本环节</button>
+                </form>
+                <div class="muted" th:if="${ln.node.status == 0 && !ln.writableByMe}">
+                    本环节派给「<b th:text="${ln.node.ownerLogin}"></b>」，你在本环节只读。
+                </div>
+            </div>
+        </th:block>
+        <div th:if="${view.latestVetoed}" shiro:hasPermission="zw:zwRetest:fill">
+            <button class="pear-btn pear-btn-warming pear-btn-md" id="btn-retry">本轮被否决，另起一轮</button>
+        </div>
+    </div>
+</div>
+</th:block>
+<div class="layui-card" th:if="${view == null}"><div class="layui-card-body">复测单不存在。</div></div>
+
+<th:block th:include="include :: footer"/>
+<script th:inline="javascript">
+    let REPORT_ID = [[${view != null ? view.retest.reportId : null}]];
+    layui.use(['jquery', 'layer'], function () {
+        let $ = layui.jquery, layer = layui.layer;
+        let R = rootPath + '/zwRetest/';
+        window.fillNode = function (btn) {
+            let box = $(btn).closest('form'), data = {retestId: $(btn).data('retest')}, bad = false;
+            box.find('[data-k]').each(function () {
+                let v = $(this).val();
+                if (!v || !String(v).trim()) { bad = true; }
+                data[$(this).data('k')] = v;
+            });
+            if (bad) { layer.msg('四件套一样都不许空、不预填', {icon: 2}); return; }
+            $.post(R + 'fill', data, function (res) {
+                layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2, time: 1000},
+                    () => { if (res.code === 200) location.reload(); });
+            });
+        };
+        $('#btn-retry').on('click', () => $.post(R + 'retry', {reportId: REPORT_ID}, function (res) {
+            layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2, time: 1000},
+                () => { if (res.code === 200) location.reload(); });
+        }));
+    });
+</script>
+</body>
+</html>

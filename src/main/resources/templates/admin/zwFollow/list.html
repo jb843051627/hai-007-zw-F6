@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('盯办流水台账')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">上报单ID</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="reportId" placeholder="可按单过滤" class="layui-input">
+                </div>
+                <label class="layui-form-label">步次</label>
+                <div class="layui-input-inline">
+                    <select name="stepNo" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="0">内部处置</option>
+                        <option value="1">反映供水户</option>
+                        <option value="2">复测回程</option>
+                        <option value="3">待结案</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">情形</label>
+                <div class="layui-input-inline">
+                    <select name="status" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="0">待盯</option>
+                        <option value="1">已盯</option>
+                        <option value="2">联系不上</option>
+                        <option value="3">漏盯</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">盯办人</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="ownerLogin" placeholder="登录名" class="layui-input">
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="f-query">
+                    <i class="layui-icon layui-icon-search"></i> 查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i> 重置
+                </button>
+            </div>
+        </form>
+        <button shiro:hasPermission="zw:zwFollow:run" class="pear-btn pear-btn-md pear-btn-warming" id="btn-runDue">
+            跑批：到期自动结漏盯并续开
+        </button>
+        <button class="pear-btn pear-btn-md pear-btn-success" id="btn-export">导出流水 CSV（核对漏了什么）</button>
+        <span style="color:#999;font-size:12px;margin-left:8px;">
+            盯办记录只有系统能开、只能系统结；每条结果都带着上一次盯的时间，隔几个月也一条条翻得出。
+        </span>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="f-table" lay-filter="f-table"></table>
+    </div>
+</div>
+
+<script type="text/html" id="f-status">
+    {{#  if(d.status == 0){ }}<span class="layui-badge layui-bg-orange">待盯</span>
+    {{#  } else if(d.status == 1){ }}<span class="layui-badge layui-bg-green">已盯</span>
+    {{#  } else if(d.status == 2){ }}<span class="layui-badge layui-bg-blue">联系不上</span>
+    {{#  } else if(d.status == 3){ }}<span class="layui-badge">漏盯</span>{{#  } }}
+</script>
+<script type="text/html" id="f-bar">
+    {{#  if(d.status == 0){ }}
+    <button shiro:hasPermission="zw:zwFollow:finish"
+            class="pear-btn pear-btn-xs pear-btn-primary" lay-event="done">登记结果</button>
+    {{#  } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery', 'layer'], function () {
+        let table = layui.table, form = layui.form, $ = layui.jquery, layer = layui.layer;
+        let PATH = rootPath + '/zwFollow/';
+        table.render({
+            elem: '#f-table', url: PATH + 'listData', page: true, method: 'get', skin: 'line',
+            cols: [[
+                {title: 'ID', field: 'id', hide: true},
+                {title: '上报单', field: 'reportId', width: 120, align: 'center', templet: function (d) {
+                        return String(d.reportId);
+                    }},
+                {title: '步次', field: 'stepNo', width: 110, align: 'center', templet: function (d) {
+                        return ['内部处置', '反映供水户', '复测回程', '待结案'][d.stepNo] || '';
+                    }},
+                {title: '第几次', field: 'seqNo', width: 80, align: 'center'},
+                {title: '盯办人', field: 'ownerLogin', width: 100, align: 'center'},
+                {title: '应盯时刻', field: 'dueAt', width: 170, align: 'center'},
+                {title: '上一次盯', field: 'prevFollowAt', width: 170, align: 'center',
+                    templet: d => d.prevFollowAt || '首盯'},
+                {title: '盯的谁', minWidth: 200, templet: function (d) {
+                        return d.targetContactName
+                            ? d.targetAccountName + ' / ' + d.targetContactName + ' ' + d.targetContactPhone
+                            : '处置岗';
+                    }},
+                {title: '情形', field: 'status', width: 100, align: 'center', templet: '#f-status'},
+                {title: '结果', field: 'result', minWidth: 240},
+                {title: '了结人/时刻', width: 200, align: 'center', templet: function (d) {
+                        return d.finishBy == null ? '—' : d.finishBy + '<br>' + d.finishTime;
+                    }},
+                {title: '操作', width: 110, align: 'center', toolbar: '#f-bar', fixed: 'right'}
+            ]]
+        });
+        form.on('submit(f-query)', function (data) {
+            table.reload('f-table', {where: data.field, page: {curr: 1}});
+            return false;
+        });
+        $('#btn-runDue').on('click', function () {
+            $.post(PATH + 'runDue', {}, function (res) {
+                layer.msg(res.msg, {icon: 1, time: 1000}, () => table.reload('f-table'));
+            });
+        });
+        $('#btn-export').on('click', function () {
+            let f = {};
+            $('.layui-form [name]').each(function () { f[$(this).attr('name')] = $(this).val(); });
+            window.location.href = PATH + 'export?reportId=' + encodeURIComponent(f.reportId || '')
+                + '&status=' + encodeURIComponent(f.status || '');
+        });
+        table.on('tool(f-table)', function (obj) {
+            if (obj.event === 'done') {
+                layer.prompt({title: '本次盯办结果（联系不上也写明）', formType: 2}, function (text, idx) {
+                    if (!text || !text.trim()) { layer.msg('必填', {icon: 2}); return; }
+                    layer.close(idx);
+                    layer.open({
+                        type: 1, title: '是否联系上', area: ['320px', '180px'],
+                        content: '<div style="padding:20px;"><button class="pear-btn pear-btn-primary" id="p-yes">已联系上</button> '
+                            + '<button class="pear-btn pear-btn-warming" id="p-no">联系不上</button></div>',
+                        success: function () {
+                            $('#p-yes').on('click', function () { doFinish(obj.data.id, 1, text); });
+                            $('#p-no').on('click', function () { doFinish(obj.data.id, 0, text); });
+                        }
+                    });
+                });
+            }
+            function doFinish(id, reached, text) {
+                $.post(PATH + 'finish', {id: id, reached: reached, result: text}, function (res) {
+                    layer.closeAll();
+                    layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2, time: 1000},
+                        () => { if (res.code === 200) table.reload('f-table'); });
+                });
+            }
+        });
+    });
+</script>
+</body>
+</html>

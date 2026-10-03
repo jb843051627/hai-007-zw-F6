@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('检测数据导入核实')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">采样批次</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="batchNo" placeholder="如 B202609" class="layui-input">
+                </div>
+                <label class="layui-form-label">点位编号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="siteNo" placeholder="" class="layui-input">
+                </div>
+                <label class="layui-form-label">读数明细</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="itemCode" placeholder="如 CL" class="layui-input">
+                </div>
+            </div>
+            <div class="layui-form-item">
+                <label class="layui-form-label">是否有效</label>
+                <div class="layui-input-inline">
+                    <select name="validFlag" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="1">有效</option>
+                        <option value="0">无效</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">是否已复核</label>
+                <div class="layui-input-inline">
+                    <select name="reviewedFlag" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="1">已复核</option>
+                        <option value="0">未复核</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">校验结论</label>
+                <div class="layui-input-inline">
+                    <select name="checkStatus" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="1">格式合格</option>
+                        <option value="2">异常</option>
+                    </select>
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="imp-row-query">
+                    <i class="layui-icon layui-icon-search"></i> 查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i> 重置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <!-- 页面级按钮（不放 table 工具栏）：table.reload 会重绘工具栏导致上传绑定失效 -->
+        <button shiro:hasPermission="zw:zwImpRow:import" type="button"
+                class="pear-btn pear-btn-primary pear-btn-md" id="btn-import">
+            <i class="layui-icon layui-icon-upload"></i> 导入 Excel
+        </button>
+        <button shiro:hasPermission="zw:zwImpRow:export" type="button"
+                class="pear-btn pear-btn-success pear-btn-md" id="btn-export">
+            <i class="layui-icon layui-icon-download-circle"></i> 导出明细
+        </button>
+        <span style="margin-left:12px;color:#999;font-size:12px;">
+            导出按报表口径取数（只含已入正式账行），文件名带点位编号与统计日期；同点位同日导两次内容一致。
+        </span>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="imp-row-table" lay-filter="imp-row-table"></table>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">本期与上期差异（按同一个批次口径比）</div>
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">本期批次</label>
+                <div class="layui-input-inline" style="width:260px;">
+                    <input type="text" name="current" placeholder="多个批次逗号分隔，如 B202609,B202610" class="layui-input">
+                </div>
+                <label class="layui-form-label">上期批次</label>
+                <div class="layui-input-inline" style="width:260px;">
+                    <input type="text" name="previous" placeholder="如 B202607,B202608" class="layui-input">
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="imp-row-diff">
+                    <i class="layui-icon layui-icon-template"></i> 比对
+                </button>
+            </div>
+        </form>
+        <div id="diff-result" style="font-size:13px;color:#555;"></div>
+    </div>
+</div>
+</body>
+
+<script type="text/html" id="imp-row-bar">
+    <a class="layui-btn layui-btn-xs pear-btn-primary" lay-event="detail">下钻</a>
+    {{#  if(d.checkStatus == 2 && d.verifyResult == null){ }}
+    <button shiro:hasPermission="zw:zwImpRow:confirm" type="button"
+            class="pear-btn pear-btn-warming pear-btn-xs" lay-event="confirm">
+        {{#  if(d.confirmBy){ }}已确认{{#  } else { }}确认异常{{#  } }}
+    </button>
+    {{#  } }}
+</script>
+
+<script type="text/html" id="imp-row-check">
+    {{#  if(d.checkStatus == 1){ }}<span class="layui-badge layui-bg-green">格式合格</span>
+    {{#  } else if(d.checkStatus == 2){ }}<span class="layui-badge">异常</span>
+    {{#  } else { }}<span class="layui-badge layui-bg-gray">待校</span>{{#  } }}
+</script>
+
+<script type="text/html" id="imp-row-ledger">
+    {{#  if(d.status == 1){ }}<span class="layui-badge layui-bg-blue">已入库</span>
+    {{#  } else { }}<span class="layui-badge layui-bg-gray">拦在库外</span>{{#  } }}
+</script>
+
+<script type="text/html" id="imp-row-verify">
+    {{#  if(d.verifyResult == 1){ }}<span class="layui-badge layui-bg-green">核实成·已归档</span>
+    {{#  } else if(d.verifyResult == 2){ }}<span class="layui-badge">核实不成</span>
+    {{#  } else { }}<span class="layui-badge layui-bg-gray">未核实</span>{{#  } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery', 'layer', 'upload'], function () {
+        let table = layui.table;
+        let form = layui.form;
+        let $ = layui.jquery;
+        let layer = layui.layer;
+        let upload = layui.upload;
+
+        let MODULE_PATH = rootPath + "/zwImpRow/";
+        let cols = [
+            [
+                {title: 'ID', field: 'id', align: 'center', hide: true},
+                {title: '采样批次', field: 'batchNo', align: 'center', width: 120},
+                {title: '行次', field: 'rowNo', align: 'center', width: 60},
+                {title: '点位编号', field: 'siteNo', align: 'center', width: 90},
+                {title: '读数明细', field: 'itemCode', align: 'center', width: 90},
+                {title: '检测读数', field: 'qty', align: 'center', width: 90},
+                {title: '样本类别', field: 'sampleType', align: 'center', width: 90},
+                {title: '检测时间', field: 'testAt', align: 'center', width: 160},
+                {title: '申报/定级规则', align: 'center', width: 200, templet: function (d) {
+                        let dec = d.declaredRuleCode || '';
+                        let act = d.ruleCode || '';
+                        if (dec && act && dec !== act) {
+                            return '<span style="color:#FF5722;">' + dec + ' ⇄ ' + act + '</span>';
+                        }
+                        return dec || act || '';
+                    }},
+                {title: '等级', field: 'gradeLevel', align: 'center', width: 80, templet: function (d) {
+                        return d.gradeLevel == null ? '无可用标准' : d.gradeLevel;
+                    }},
+                {title: '有效', field: 'validFlag', align: 'center', width: 70, templet: function (d) {
+                        return d.validFlag === 1 ? '有效' : (d.validFlag === 0 ? '无效' : '');
+                    }},
+                {title: '复核', field: 'reviewedFlag', align: 'center', width: 80, templet: function (d) {
+                        return d.reviewedFlag === 1 ? '已复核' : (d.reviewedFlag === 0 ? '未复核' : '');
+                    }},
+                {title: '校验', field: 'checkStatus', align: 'center', width: 90, templet: '#imp-row-check'},
+                {title: '落地', field: 'status', align: 'center', width: 90, templet: '#imp-row-ledger'},
+                {title: '核实', field: 'verifyResult', align: 'center', width: 130, templet: '#imp-row-verify'},
+                {title: '校验说明', field: 'checkMsg', align: 'center', minWidth: 240},
+                {title: '操作', toolbar: '#imp-row-bar', align: 'center', width: 150, fixed: 'right'}
+            ]
+        ];
+
+        table.render({
+            elem: '#imp-row-table',
+            url: MODULE_PATH + 'list',
+            page: true,
+            method: 'get',
+            cols: cols,
+            skin: 'line'
+        });
+
+        form.on('submit(imp-row-query)', function (data) {
+            table.reload('imp-row-table', {where: data.field, page: {curr: 1}});
+            return false;
+        });
+
+        // 整份导入：后端逐行校验，硬错整批拦在库外——这里只负责把三种结局亮清楚
+        upload.render({
+            elem: '#btn-import',
+            url: MODULE_PATH + 'import',
+            accept: 'file',
+            exts: 'xlsx|xls',
+            done: function (res) {
+                if (res.code !== 200) {
+                    layer.alert(res.msg || '导入被拒', {icon: 2, title: '整批未入库'});
+                    table.reload('imp-row-table');
+                    return;
+                }
+                let d = res.data || {};
+                let msg;
+                let icon = 1;
+                if (d.idempotent) {
+                    msg = '与既有批次内容一致，幂等处理：未重复落账。';
+                    if (d.blocked) {
+                        msg += '\n该批此前已被整批拦在库外（' + (d.imported || 0) + ' 行入库）。';
+                    } else {
+                        msg += '\n已入库 ' + d.imported + ' 行。';
+                    }
+                    icon = 0;
+                } else if (d.blocked) {
+                    msg = '整批拦截：共 ' + d.total + ' 行，发现 ' + (d.hardErrors || []).length
+                        + ' 条硬错，正式账一行未写。异常行已全部录进明细台账：\n\n'
+                        + (d.hardErrors || []).join('\n');
+                    icon = 2;
+                } else {
+                    msg = '全格合格：' + d.imported + ' 行已入库，定级规则代号与检测当天现行线一致。';
+                }
+                layer.alert(msg, {icon: icon, title: '导入结果'}, function (idx) {
+                    layer.close(idx);
+                    table.reload('imp-row-table');
+                });
+            }
+        });
+
+        // 导出：直接绑页面按钮，只读报表口径（点位/有效/复核）；同点位同日两次导出内容一致
+        $('#btn-export').on('click', function () {
+            let f = {};
+            $('.layui-form [name]').each(function () {
+                f[$(this).attr('name')] = $(this).val();
+            });
+            let qs = $.param({siteNo: f.siteNo || '', validFlag: f.validFlag || '', reviewedFlag: f.reviewedFlag || ''});
+            window.location.href = MODULE_PATH + 'export?' + qs;
+        });
+
+        table.on('tool(imp-row-table)', function (obj) {
+            if (obj.event === 'detail') {
+                window.location.href = MODULE_PATH + 'detail?batchNo=' + encodeURIComponent(obj.data.batchNo);
+            }
+            if (obj.event === 'confirm') {
+                $.ajax({
+                    url: MODULE_PATH + 'confirm',
+                    type: 'post',
+                    data: {id: obj.data.id},
+                    success: function (res) {
+                        layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2});
+                        if (res.code === 200) {
+                            table.reload('imp-row-table');
+                        }
+                    }
+                });
+            }
+        });
+
+        // 本期/上期：同批次口径，差异点名到行与两边原始行
+        form.on('submit(imp-row-diff)', function (data) {
+            if (!data.field.current || !data.field.previous) {
+                layer.msg('本期、上期批次号都要填', {icon: 2});
+                return false;
+            }
+            $.ajax({
+                url: MODULE_PATH + 'diff',
+                type: 'get',
+                data: data.field,
+                success: function (res) {
+                    if (res.code !== 200) {
+                        layer.msg(res.msg || '比对失败', {icon: 2});
+                        return;
+                    }
+                    let list = res.data || [];
+                    if (list.length === 0) {
+                        $('#diff-result').html('<span style="color:#16b777;">同批次口径下无差异：每个批次每行原始行都对得上。</span>');
+                        return;
+                    }
+                    let html = '';
+                    for (let i = 0; i < list.length; i++) {
+                        let d = list[i];
+                        html += '<div style="border:1px solid #e8e8e8;border-radius:6px;padding:8px 12px;margin-bottom:8px;">'
+                            + '<b>' + d.batchNo + '</b> <span class="layui-badge layui-bg-orange">' + d.kindText + '</span>';
+                        for (let j = 0; j < (d.mismatches || []).length; j++) {
+                            let m = d.mismatches[j];
+                            html += '<div style="margin-top:6px;border-top:1px dashed #eee;padding-top:6px;">'
+                                + '第 ' + m.rowNo + ' 行对不上：'
+                                + '<div style="color:#16b777;">本期原始行：' + (m.currentRaw || '<i>缺此行</i>') + '</div>'
+                                + '<div style="color:#FF5722;">上期原始行：' + (m.previousRaw || '<i>缺此行</i>') + '</div>'
+                                + '</div>';
+                        }
+                        html += '</div>';
+                    }
+                    $('#diff-result').html(html);
+                }
+            });
+            return false;
+        });
+    });
+</script>

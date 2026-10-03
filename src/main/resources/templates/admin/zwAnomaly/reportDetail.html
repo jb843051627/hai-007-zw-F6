@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('上报单全链处置')"/>
+    <style>
+        .kv {margin-right:16px;font-size:13px;color:#666;} .kv b{color:#333;}
+        .box {border:1px solid #e2e2e2;border-radius:6px;padding:12px 14px;background:#fff;margin-bottom:12px;}
+        .node-box {border:1px solid #e2e2e2;border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafafa;}
+        .node-cur {border-color:#FFB800;box-shadow:0 0 0 2px rgba(255,184,0,.15);background:#fff;}
+        .node-done {border-color:#16b777;}
+        .node-veto {border-color:#FF5722;}
+        .tl {border-left:2px solid #e8e8e8;margin-left:8px;padding-left:16px;}
+        .tl-item {position:relative;margin-bottom:12px;}
+        .tl-item:before {content:'';position:absolute;left:-22px;top:4px;width:9px;height:9px;border-radius:50%;background:#16b777;}
+        .muted {color:#999;font-size:12px;}
+    </style>
+</head>
+<body class="pear-container" th:if="${view != null}">
+<th:block th:with="r=${view.report}, a=${view.anomaly}, retest=${view.retest}, follows=${view.follows}">
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">
+        <span th:text="${r.reportNo}"></span>
+        <span class="layui-badge layui-bg-green" th:if="${r.status == 1}">已结案归档</span>
+        <span class="layui-badge layui-bg-gray" th:if="${r.status == 0 && r.stepNo == 0}">内部处置</span>
+        <span class="layui-badge layui-bg-orange" th:if="${r.status == 0 && r.stepNo == 1}">已反映供水户·紧盯</span>
+        <span class="layui-badge layui-bg-blue" th:if="${r.status == 0 && r.stepNo == 2}">复测回程</span>
+        <span class="layui-badge" th:if="${r.status == 0 && r.stepNo == 3}">待结案</span>
+    </div>
+    <div class="layui-card-body">
+        <span class="kv">点位：<b th:text="${r.siteNo}"></b></span>
+        <span class="kv">检测日：<b th:text="${#dates.format(r.testDay,'yyyy-MM-dd')}"></b></span>
+        <span class="kv">指标：<b th:text="${r.itemCode}"></b></span>
+        <span class="kv">档位：<b th:text="${a.gradeLevel == 4 ? '严重超标' : (a.gradeLevel == 3 ? '超标' : '关注')}"></b></span>
+        <span class="kv">停水：<b th:text="${r.needStop == 1 ? '要' : '不要'}"></b></span>
+        <span class="kv">复测：<b th:text="${r.needRetest == 1 ? '要' : '不要'}"></b></span>
+        <span class="kv" th:if="${r.accountName != null}">供水户：<b th:text="${r.accountName}"></b>
+            （<span th:text="${r.contactName}"></span> <span th:text="${r.contactPhone}"></span>，反映时刻
+            <span th:text="${#dates.format(r.reflectTime,'yyyy-MM-dd HH:mm:ss')}"></span>）</span>
+    </div>
+</div>
+
+<!-- 处置动作区：页面不设任何打破一单一异常的旁路，每个口只调对应服务 -->
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">当前可办</div>
+    <div class="layui-card-body">
+        <!-- 反映供水户 -->
+        <div class="box" th:if="${r.status == 0 && (r.stepNo == 0 || r.stepNo == 1)}" shiro:hasPermission="zw:zwAnomaly:reflect">
+            <b th:text="${r.stepNo == 0 ? '反映到供水户名下' : '反映对象取错或联系不上，可在此订正'}"></b>
+            <form class="layui-form" style="margin-top:8px;" onsubmit="return false;">
+                <select name="contactId" lay-verify="required" style="width:360px;">
+                    <option value="">请选择该点位当前可用联系人</option>
+                    <option th:each="c : ${contacts}" th:value="${c.id}"
+                            th:text="${c.accountName + ' / ' + c.contactName + ' ' + c.contactPhone + '（' + c.siteNo + '）'}"></option>
+                </select>
+                <button class="pear-btn pear-btn-warming pear-btn-md" style="margin-left:10px;" id="btn-reflect">反映/订正</button>
+                <a class="muted" shiro:hasPermission="zw:zwContact:edit" th:href="@{/zwContact/view}">号取错了或停机？先去名册订正</a>
+            </form>
+        </div>
+        <!-- 复测回程 → 待结案 -->
+        <div class="box" th:if="${r.status == 0 && ((r.needRetest == 1 && r.stepNo == 2) || (r.needRetest != 1 && r.stepNo == 1))}"
+             shiro:hasPermission="zw:zwAnomaly:close">
+            <b>处置步已走完，进入最后一步</b>
+            <button class="pear-btn pear-btn-primary pear-btn-md" style="margin-left:10px;" id="btn-toClose">进入待结案</button>
+        </div>
+        <!-- 待结案 → 归档 -->
+        <div class="box" th:if="${r.status == 0 && r.stepNo == 3}" shiro:hasPermission="zw:zwAnomaly:close">
+            <b>结案归档（以本次写下的结论为准；登记/上报/归档同刻被改时，本次条件更新 0 行整笔回滚）</b>
+            <div style="margin-top:8px;">
+                <textarea id="close-opinion" placeholder="写下结案结论" class="layui-textarea" style="width:560px;height:70px;"></textarea>
+            </div>
+            <button class="pear-btn pear-btn-danger pear-btn-md" style="margin-top:8px;" id="btn-close">结案归档</button>
+            <button class="pear-btn pear-btn-warming pear-btn-md" style="margin-top:8px;" id="btn-back3">退回上一步</button>
+        </div>
+        <!-- 已结案：可回退到待结案 -->
+        <div class="box" th:if="${r.status == 1}" shiro:hasPermission="zw:zwAnomaly:close">
+            <b>已结案的来龙去脉可从最后一步退回上一步，逐笔与经办屏对账。</b>
+            <div class="muted">只追加回退台账；上报事实、已反映供水户、归档标识不清除，登记判定照样不可更正。</div>
+            <button class="pear-btn pear-btn-warming pear-btn-md" style="margin-top:8px;" id="btn-rollback">结案回退至待结案</button>
+        </div>
+        <!-- 在办任意步也可退一格（第一步不可退） -->
+        <div class="box" th:if="${r.status == 0 && r.stepNo > 0 && r.stepNo != 3}">
+            <button class="pear-btn pear-btn-warming pear-btn-md" id="btn-stepback" shiro:hasPermission="zw:zwAnomaly:close">处置步退回上一格</button>
+            <span class="muted">前段动作台账/快照原样保留，只回退处置步并重开该步盯办。</span>
+        </div>
+    </div>
+</div>
+
+<!-- 动作台账（倒查：从最后一步回到第一步） -->
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">处置动作台账（只追加，逐条对屏）</div>
+    <div class="layui-card-body">
+        <div class="tl">
+            <div class="tl-item" th:each="act : ${#lists.reverse(view.actions)}">
+                <div>
+                    <b th:text="${act.seqNo} + '. ' + @anomalyActionLabel.label(act.action)"></b>
+                    <span class="muted" th:text="${#dates.format(act.actTime,'yyyy-MM-dd HH:mm:ss')} + ' 经办：' + ${act.actor}"></span>
+                </div>
+                <div th:text="${act.detail}" style="font-size:13px;color:#444;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 复测四环：各轮分摆，旧否决轮原样留痕 -->
+<div class="layui-card" th:if="${retest != null}">
+    <div class="layui-card-header" style="font-weight:600;">
+        复测单环节链（系统自动开出，逐环照抄确认；提交后本环只读）
+        <a class="pear-btn pear-btn-xs pear-btn-success" style="margin-left:10px;"
+           th:href="@{/zwRetest/export(reportId=${r.id})}">导出复测环节明细 CSV</a>
+        <span th:each="rd : ${retest.rounds}" style="margin-left:8px;">
+            <a class="layui-btn layui-btn-xs"
+               th:classappend="${rd.id == retest.retest.id} ? 'pear-btn-primary' : ''"
+               th:href="@{/zwRetest/view/{id}(id=${rd.id})}"
+               th:text="'第' + ${rd.roundNo} + '轮'"></a>
+        </span>
+    </div>
+    <div class="layui-card-body">
+        <th:block th:each="ln : ${retest.nodes}">
+            <div class="node-box"
+                 th:classappend="${ln.node.status == 2} ? ' node-veto' : (ln.node.status == 1 ? ' node-done' : (ln.writableByMe ? ' node-cur' : ''))">
+                <b th:text="${ln.node.nodeNo + 1} + '. ' + (${ln.node.nodeNo == 0 ? '采样复测' : (ln.node.nodeNo == 1 ? '化验复核' : (ln.node.nodeNo == 2 ? '水质科判定' : '主管封卷'))})"></b>
+                <span class="layui-badge layui-bg-gray" th:text="'本环节经办人：' + ${ln.node.ownerLogin}"></span>
+                <span class="layui-badge layui-bg-green" th:if="${ln.node.status == 1}">已提交·只读</span>
+                <span class="layui-badge" th:if="${ln.node.status == 2}">否决·复测卡停</span>
+                <span class="layui-badge layui-bg-orange" th:if="${ln.node.status == 0}">待填</span>
+
+                <table style="margin-top:8px;width:100%;font-size:13px;" th:if="${ln.node.status != 0}">
+                    <tr>
+                        <td style="width:110px;" class="muted">检测项目</td><td th:text="${ln.node.testItem}"></td>
+                        <td style="width:110px;" class="muted">检测数值</td><td th:text="${ln.node.testQty}"></td>
+                        <td style="width:110px;" class="muted">检测时间</td><td th:text="${#dates.format(ln.node.testAt,'yyyy-MM-dd HH:mm:ss')}"></td>
+                    </tr>
+                    <tr>
+                        <td class="muted">复核结论</td>
+                        <td th:text="${ln.node.conclusion == 'PASS' ? '确认通过' : '否决'}"></td>
+                        <td class="muted">提交人/时刻</td>
+                        <td colspan="3" th:text="${ln.node.fillBy} + ' ' + ${#dates.format(ln.node.fillTime,'yyyy-MM-dd HH:mm:ss')}"></td>
+                    </tr>
+                    <tr th:if="${ln.node.opinion != null}"><td class="muted">意见</td><td colspan="5" th:text="${ln.node.opinion}"></td></tr>
+                </table>
+
+                <!-- 待填且是本环节经办人才亮格；要多少人在本环节填多少，别人点进来整块只读 -->
+                <form class="layui-form" style="margin-top:8px;" th:if="${ln.node.status == 0 && ln.writableByMe}" onsubmit="return false;">
+                    <div class="muted" th:if="${ln.node.nodeNo > 0}">
+                        本环节须把上一环结果再填一遍（逐字照抄，对不上不收）：项目
+                        <b th:text="${ln.node.prevItem}"></b>、数值 <b th:text="${ln.node.prevQty}"></b>、
+                        时间 <b th:text="${#dates.format(ln.node.prevTestAt,'yyyy-MM-dd HH:mm:ss')}"></b>
+                    </div>
+                    <div style="margin-top:6px;">
+                        <input class="layui-input" style="width:150px;display:inline-block;" placeholder="检测项目" data-k="testItem">
+                        <input class="layui-input" style="width:120px;display:inline-block;" placeholder="检测数值" data-k="testQty">
+                        <input class="layui-input" style="width:190px;display:inline-block;" placeholder="检测时间 yyyy-MM-dd HH:mm:ss" data-k="testAt">
+                        <select style="width:130px;display:inline-block;" data-k="conclusion">
+                            <option value="PASS">确认通过</option>
+                            <option value="FAIL">否决（卡停）</option>
+                        </select>
+                    </div>
+                    <textarea class="layui-textarea" style="width:560px;height:60px;margin-top:6px;" placeholder="本环节意见（可空）" data-k="opinion"></textarea>
+                    <button class="pear-btn pear-btn-primary pear-btn-sm" style="margin-top:6px;"
+                            th:attr="data-retest=${retest.retest.id}" onclick="fillNode(this)">提交本环节（提交即只读）</button>
+                </form>
+                <div class="muted" th:if="${ln.node.status == 0 && !ln.writableByMe}">
+                    本环节派给「<b th:text="${ln.node.ownerLogin}"></b>」，当前登录人在本环节只读。
+                </div>
+            </div>
+        </th:block>
+
+        <div th:if="${retest.latestVetoed}" style="margin-top:8px;" shiro:hasPermission="zw:zwRetest:fill">
+            <button class="pear-btn pear-btn-warming pear-btn-md" id="btn-retry">本轮被否决，另起一轮（旧轮原样留痕）</button>
+        </div>
+    </div>
+</div>
+
+<!-- 盯办流水：系统自开自结，每条带上一次盯的时间 -->
+<div class="layui-card">
+    <div class="layui-card-header" style="font-weight:600;">
+        盯办流水（只系统能开结；反映供水户后 2 天一盯，周期另算）
+        <button class="layui-btn layui-btn-xs layui-bg-gray" shiro:hasPermission="zw:zwFollow:run" id="btn-runDue">跑批：结到期漏盯</button>
+    </div>
+    <div class="layui-card-body">
+        <table class="layui-table" style="margin:0;">
+            <thead><tr>
+                <th>步次</th><th>第几次</th><th>盯办人</th><th>应盯时刻</th><th>上一次盯的时间</th>
+                <th>盯的谁</th><th>情形</th><th>结果</th><th>了结</th>
+            </tr></thead>
+            <tbody>
+            <tr th:each="f : ${follows}">
+                <td th:text="${f.stepNo == 0 ? '内部处置' : (f.stepNo == 1 ? '反映供水户' : (f.stepNo == 2 ? '复测回程' : '待结案'))}"></td>
+                <td th:text="${f.seqNo}"></td>
+                <td th:text="${f.ownerLogin}"></td>
+                <td th:text="${#dates.format(f.dueAt,'yyyy-MM-dd HH:mm:ss')}"></td>
+                <td th:text="${f.prevFollowAt == null ? '首盯' : #dates.format(f.prevFollowAt,'yyyy-MM-dd HH:mm:ss')}"></td>
+                <td th:text="${f.targetContactName == null ? '处置岗' : (f.targetAccountName + ' / ' + f.targetContactName + ' ' + f.targetContactPhone)}"></td>
+                <td>
+                    <span th:if="${f.status == 0}" class="layui-badge layui-bg-orange">待盯</span>
+                    <span th:if="${f.status == 1}" class="layui-badge layui-bg-green">已盯</span>
+                    <span th:if="${f.status == 2}" class="layui-badge layui-bg-blue">联系不上</span>
+                    <span th:if="${f.status == 3}" class="layui-badge">漏盯</span>
+                </td>
+                <td style="min-width:220px;">
+                    <span th:text="${f.result}"></span>
+                    <span th:if="${f.status == 0 && f.ownerLogin == loginName}" shiro:hasPermission="zw:zwFollow:finish">
+                        <input class="layui-input" style="width:230px;display:inline-block;" id="follow-text" placeholder="本次盯办结果（必填）">
+                        <button class="pear-btn pear-btn-xs pear-btn-primary" th:attr="data-id=${f.id}" onclick="finishFollow(this,true)">已盯登记</button>
+                        <button class="pear-btn pear-btn-xs pear-btn-warming" th:attr="data-id=${f.id}" onclick="finishFollow(this,false)">联系不上</button>
+                    </span>
+                    <span th:if="${f.status == 0 && f.ownerLogin != loginName}" class="muted">派给 <b th:text="${f.ownerLogin}"></b></span>
+                </td>
+                <td th:text="${f.finishBy == null ? '—' : f.finishBy + ' ' + #dates.format(f.finishTime,'yyyy-MM-dd HH:mm:ss')}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <div class="muted" style="margin-top:6px;">
+            哪怕盯了七八次、中间隔几个月，都顺着"第几次"一条条翻；后段任何写法都倒改不了前段。
+            <a shiro:hasPermission="zw:zwFollow:list" th:href="@{/zwFollow/view}">打开全部盯办台账/导出</a>
+        </div>
+    </div>
+</div>
+</th:block>
+<div class="layui-card" th:if="${view == null}"><div class="layui-card-body">上报单不存在。</div></div>
+
+<th:block th:include="include :: footer"/>
+<script th:inline="javascript">
+    let REPORT_ID = [[${view != null ? view.report.id : null}]];
+    layui.use(['jquery', 'layer', 'form'], function () {
+        let $ = layui.jquery, layer = layui.layer, form = layui.form;
+        form.render();
+        let A = rootPath + '/zwAnomaly/', R = rootPath + '/zwRetest/', F = rootPath + '/zwFollow/';
+
+        function post(url, data, okMsg) {
+            $.post(url, data, function (res) {
+                layer.msg(res.msg || (res.code === 200 ? '已落账' : '未受理'),
+                    {icon: res.code === 200 ? 1 : 2, time: 900},
+                    function () { if (res.code === 200) location.reload(); });
+            });
+        }
+        function promptAct(title, url, field) {
+            layer.prompt({title: title, formType: 2}, function (text, idx) {
+                if (!text || !text.trim()) { layer.msg('必填', {icon: 2}); return; }
+                layer.close(idx);
+                field.reason = field.opinion = text;
+                post(url, field, '');
+            });
+        }
+
+        $('#btn-reflect').on('click', function () {
+            let contactId = $('[name=contactId]').val();
+            if (!contactId) { layer.msg('请选择联系人', {icon: 2}); return; }
+            post(A + 'reflect', {reportId: REPORT_ID, contactId: contactId});
+        });
+        $('#btn-toClose').on('click', () => post(A + 'toClose', {reportId: REPORT_ID}));
+        $('#btn-close').on('click', function () {
+            let opinion = $('#close-opinion').val();
+            if (!opinion || !opinion.trim()) { layer.msg('结案结论必填', {icon: 2}); return; }
+            layer.confirm('归档后只可回退处置步、判定与上报不可改。确认结案归档？', {icon: 3}, function (idx) {
+                layer.close(idx); post(A + 'close', {reportId: REPORT_ID, opinion: opinion});
+            });
+        });
+        $('#btn-back3').on('click', () => promptAct('退回原因', A + 'rollback', {reportId: REPORT_ID}));
+        $('#btn-rollback').on('click', () => promptAct('结案回退原因（逐笔留痕）', A + 'rollback', {reportId: REPORT_ID}));
+        $('#btn-stepback').on('click', () => promptAct('退回上一格的原因', A + 'rollback', {reportId: REPORT_ID}));
+        $('#btn-retry').on('click', () => post(R + 'retry', {reportId: REPORT_ID}));
+        $('#btn-runDue').on('click', () => $.post(F + 'runDue', {}, function (res) {
+            layer.msg(res.msg, {icon: 1, time: 1000}, () => location.reload());
+        }));
+
+        window.fillNode = function (btn) {
+            let box = $(btn).closest('form');
+            let data = {retestId: $(btn).data('retest')};
+            let bad = false;
+            box.find('[data-k]').each(function () {
+                let v = $(this).val();
+                if (!v || !String(v).trim()) { bad = true; }
+                data[$(this).data('k')] = v;
+            });
+            if (bad) { layer.msg('检测项目/数值/时间/结论一样都不许空、不预填', {icon: 2}); return; }
+            $.post(R + 'fill', data, function (res) {
+                layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2, time: 1000},
+                    () => { if (res.code === 200) location.reload(); });
+            });
+        };
+        window.finishFollow = function (btn, reached) {
+            let text = $(btn).prevAll('#follow-text').val();
+            if (!text || !text.trim()) { layer.msg('盯办结果必填（联系不上也写明）', {icon: 2}); return; }
+            post(F + 'finish', {id: $(btn).data('id'), reached: reached ? 1 : 0, result: text});
+        };
+    });
+</script>
+</body>
+</html>
