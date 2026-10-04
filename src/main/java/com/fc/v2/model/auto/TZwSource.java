@@ -47,9 +47,9 @@ public class TZwSource implements Serializable {
     @ApiModelProperty(value = "档案类别(水源地/水厂)")
     private String siteType;
 
-    /** 所属行政区划(省—市—区—街道) */
+    /** 所属行政区划(省—市—区—取水口) */
     @TableField("road_name")
-    @ApiModelProperty(value = "所属行政区划(省—市—区—街道)")
+    @ApiModelProperty(value = "所属行政区划(省—市—区—取水口)")
     private String roadName;
 
     /** 单档供水规模一档上限(万吨/日) */

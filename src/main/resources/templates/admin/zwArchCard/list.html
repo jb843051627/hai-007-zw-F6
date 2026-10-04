@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('水源地/水厂档案卡台账')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <span style="color:#999;font-size:12px;">
+            卡号系统发号、层级系统折算、校验码钉住才定形——三样只展示不录入；每次保存都是重录一版，
+            旧版退下备查，本页只显最近那一版；当初是谁立的、最近一次是谁改的，台账上直接摆出来。
+        </span>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">档案卡号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="billNo" placeholder="底档代号-年-当年序" class="layui-input">
+                </div>
+                <label class="layui-form-label">底档代号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="siteNo" class="layui-input">
+                </div>
+                <label class="layui-form-label">当前进度</label>
+                <div class="layui-input-inline">
+                    <select name="status" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="0">待核对</option>
+                        <option value="1">已核对</option>
+                        <option value="2">已压死</option>
+                    </select>
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="arch-card-query">
+                    <i class="layui-icon layui-icon-search"></i>
+                    查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i>
+                    重置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="arch-card-table" lay-filter="arch-card-table"></table>
+    </div>
+</div>
+</body>
+
+<script type="text/html" id="arch-card-toolbar">
+    <button shiro:hasPermission="zw:zwArchCard:add" class="pear-btn pear-btn-primary pear-btn-md" lay-event="add">
+        <i class="layui-icon layui-icon-add-1"></i>
+        立卡
+    </button>
+</script>
+
+<script type="text/html" id="arch-card-bar">
+    <a shiro:hasPermission="zw:zwArchCard:edit" class="pear-btn pear-btn-primary pear-btn-sm" lay-event="edit">
+        <i class="layui-icon layui-icon-edit"></i> 重录一版
+    </a>
+    <a class="pear-btn pear-btn-normal pear-btn-sm" lay-event="history">
+        <i class="layui-icon layui-icon-about"></i> 备查各版
+    </a>
+    <a shiro:hasPermission="zw:zwArchCard:remove" class="pear-btn pear-btn-danger pear-btn-sm" lay-event="remove">
+        <i class="layui-icon layui-icon-delete"></i> 删除
+    </a>
+</script>
+
+<script type="text/html" id="arch-card-status">
+    {{#  if(d.status == 0){ }}<span class="layui-badge layui-bg-orange">待核对</span>
+    {{#  } else if(d.status == 1){ }}<span class="layui-badge layui-bg-blue">已核对</span>
+    {{#  } else if(d.status == 2){ }}<span class="layui-badge layui-bg-green">已压死</span>
+    {{#  } }}
+</script>
+
+<script type="text/html" id="arch-card-grade">
+    {{#  if(d.gradeLevel == 1){ }}一档
+    {{#  } else if(d.gradeLevel == 2){ }}二档
+    {{#  } else if(d.gradeLevel == 3){ }}三档
+    {{#  } else { }}未定级{{#  } }}
+</script>
+
+<script type="text/html" id="arch-card-content">
+    {{#  if(d.content){ }}<span title="{{ d.content }}">{{ d.content.substring(0, 24) }}…</span>
+    {{#  } else { }}<span style="color:#999;">行至钉住才定形</span>{{#  } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery', 'layer'], function () {
+        let table = layui.table;
+        let form = layui.form;
+        let $ = layui.jquery;
+        let layer = layui.layer;
+
+        let MODULE_PATH = rootPath + "/ZwArchCardController/";
+        let cols = [
+            [
+                {title: 'ID', field: 'id', align: 'center', hide: true},
+                {title: '档案卡号', field: 'billNo', align: 'center', width: 150},
+                {title: '第几版', field: 'nodeNo', align: 'center', width: 80},
+                {title: '底档代号', field: 'siteNo', align: 'center', width: 100},
+                {title: '供水规模(万吨/日)', field: 'qty', align: 'center', width: 140},
+                {title: '本年度新增(万吨/日)', field: 'fineAmt', align: 'center', width: 150},
+                {title: '保障强度层级', field: 'gradeLevel', align: 'center', width: 110, templet: '#arch-card-grade'},
+                {title: '当前进度', field: 'status', align: 'center', width: 100, templet: '#arch-card-status'},
+                {title: '校验码', field: 'content', align: 'center', minWidth: 190, templet: '#arch-card-content'},
+                {title: '立卡人', field: 'createBy', align: 'center', width: 90},
+                {title: '最近修改人', field: 'updateBy', align: 'center', width: 100},
+                {title: '操作', toolbar: '#arch-card-bar', align: 'center', width: 280, fixed: 'right'}
+            ]
+        ];
+
+        table.render({
+            elem: '#arch-card-table',
+            url: MODULE_PATH + 'list',
+            page: true,
+            method: 'get',
+            cols: cols,
+            skin: 'line',
+            toolbar: '#arch-card-toolbar',
+            defaultToolbar: ['filter', 'print', 'exports']
+        });
+
+        table.on('toolbar(arch-card-table)', function (obj) {
+            if (obj.event === 'add') {
+                layer.open({
+                    type: 2, title: '立卡（卡号系统发、层级系统折）', area: ['680px', '520px'],
+                    content: MODULE_PATH + 'add'
+                });
+            }
+        });
+
+        table.on('tool(arch-card-table)', function (obj) {
+            if (obj.event === 'edit') {
+                layer.open({
+                    type: 2, title: '重录一版 ' + obj.data.billNo + '（当前第' + obj.data.nodeNo + '版）',
+                    area: ['680px', '560px'],
+                    content: MODULE_PATH + 'edit/' + obj.data.id
+                });
+            } else if (obj.event === 'history') {
+                $.get(MODULE_PATH + 'history', {billNo: obj.data.billNo}, function (res) {
+                    let rows = (res.code === 200 && res.data) ? res.data : [];
+                    let html = '<div style="padding:14px 18px;"><table class="layui-table">'
+                        + '<thead><tr><th>第几版</th><th>位置</th><th>供水规模</th><th>层级</th>'
+                        + '<th>进度</th><th>校验码</th><th>立卡人</th><th>最近修改人</th></tr></thead><tbody>';
+                    rows.forEach(function (r) {
+                        html += '<tr><td>第' + r.nodeNo + '版</td>'
+                            + '<td>' + (r.delFlag === 0 ? '当前在用' : '退下备查') + '</td>'
+                            + '<td>' + (r.qty == null ? '' : r.qty) + '</td>'
+                            + '<td>' + (r.gradeLevel || '未定级') + '</td>'
+                            + '<td>' + (r.status === 0 ? '待核对' : (r.status === 1 ? '已核对' : '已压死')) + '</td>'
+                            + '<td style="word-break:break-all;max-width:260px;">' + (r.content || '') + '</td>'
+                            + '<td>' + (r.createBy || '') + '</td>'
+                            + '<td>' + (r.updateBy || '') + '</td></tr>';
+                    });
+                    html += '</tbody></table>'
+                        + '<div style="color:#999;font-size:12px;">旧版本一律留着备查，查得到、改不得；两版共用一串校验码即为错。</div></div>';
+                    layer.open({type: 1, title: '备查各版 ' + obj.data.billNo, area: ['920px', '480px'], content: html});
+                });
+            } else if (obj.event === 'remove') {
+                layer.confirm('删除当前这一版？退下备查的旧版不随单删除。', function (idx) {
+                    $.ajax({
+                        url: MODULE_PATH + 'remove?ids=' + obj.data.id,
+                        type: 'delete',
+                        success: function (res) {
+                            layer.close(idx);
+                            layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2});
+                            table.reload('arch-card-table');
+                        }
+                    });
+                });
+            }
+        });
+
+        form.on('submit(arch-card-query)', function (data) {
+            table.reload('arch-card-table', {where: data.field, page: {curr: 1}});
+            return false;
+        });
+    });
+</script>

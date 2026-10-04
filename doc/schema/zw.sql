@@ -2,24 +2,30 @@
 -- 列名与基线实体契约（@TableName/@TableField）逐列对齐，改列必须同步实体。
 -- 库：hai_007
 
+-- 档案卡：一张卡管一处水源或一座水厂，挂在底档下（挂接只凭编号核对，不认名字像不像）。
+-- 卡号系统发号（底档代号-年-当年序），随卡不随版；层级系统按底档三档上限折算回填，
+-- 压着上界往高算（恰为一档上限算二档，超三档上限一律算三档）；每次重录另起一版，
+-- 旧版 del_flag=1 退下另存备查、各栏一字不动，页面只显最近那一版；
+-- 校验码得卡行至钉住（status=2）才定形，串随版本同行，两版共用一串即为错。
 CREATE TABLE IF NOT EXISTS t_zw_arch_card (
   id bigint NOT NULL COMMENT '主键',
-  bill_no varchar(64) DEFAULT NULL COMMENT '水源地/水厂档案卡号',
-  node_no int DEFAULT NULL COMMENT '本卡版本次序',
+  bill_no varchar(64) DEFAULT NULL COMMENT '水源地/水厂档案卡号（系统发号：底档代号-年-当年序，随卡不随版）',
+  node_no int DEFAULT NULL COMMENT '本卡版本次序（重录一版加一）',
   site_id int DEFAULT NULL COMMENT '所属底档',
-  site_no varchar(64) DEFAULT NULL COMMENT '所属底档代号',
+  site_no varchar(64) DEFAULT NULL COMMENT '所属底档代号（挂接只凭编号核对）',
   qty decimal(12,2) DEFAULT NULL COMMENT '本卡供水规模(万吨/日)',
   fine_amt decimal(12,2) DEFAULT NULL COMMENT '本年度新增供水规模(万吨/日)',
-  content varchar(255) DEFAULT NULL COMMENT '校验串（随版本次序走）',
-  grade_level int DEFAULT NULL COMMENT '供水规模折到的保障强度层级',
+  content varchar(255) DEFAULT NULL COMMENT '校验码（钉住才定形，随版本次序走，定形后谁也改不得）',
+  grade_level int DEFAULT NULL COMMENT '保障强度层级（系统折算回填：压上界往高算，缺阈值置0）',
   status int DEFAULT NULL COMMENT '进展 0待核对 1已核对 2已压死',
-  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
-  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
-  create_time datetime DEFAULT NULL COMMENT '创建时间',
-  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
-  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  del_flag int DEFAULT '0' COMMENT '删除标记 0当前在用 1退下备查（旧版留痕）',
+  create_by varchar(64) DEFAULT NULL COMMENT '立卡人（随卡留底，重录不换人）',
+  create_time datetime DEFAULT NULL COMMENT '立卡时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '最近一次修改人（本次重录经办）',
+  update_time datetime DEFAULT NULL COMMENT '最近一次修改时间',
   remark varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_zw_arch_bill_node (bill_no, node_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='水源地/水厂档案卡';
 
 CREATE TABLE IF NOT EXISTS t_zw_case_flow (
@@ -175,7 +181,7 @@ CREATE TABLE IF NOT EXISTS t_zw_source (
   site_no varchar(64) DEFAULT NULL COMMENT '水源地/水厂档案代号',
   site_name varchar(128) DEFAULT NULL COMMENT '档案名称',
   site_type varchar(32) DEFAULT NULL COMMENT '档案类别(水源地/水厂)',
-  road_name varchar(128) DEFAULT NULL COMMENT '所属行政区划(省—市—区—街道)',
+  road_name varchar(128) DEFAULT NULL COMMENT '所属行政区划(省—市—区—取水口)',
   th1_max decimal(12,2) DEFAULT NULL COMMENT '单档供水规模一档上限(万吨/日)',
   th2_max decimal(12,2) DEFAULT NULL COMMENT '二档上限(万吨/日)',
   th3_max decimal(12,2) DEFAULT NULL COMMENT '三档上限(万吨/日)',
@@ -632,3 +638,23 @@ CREATE TABLE IF NOT EXISTS t_zw_report_action (
 -- 演示链路的头两笔动作（上报 → 内部处置在办）
 INSERT IGNORE INTO t_zw_report_action (id, report_id, seq_no, action, step_no, detail, actor, act_time, del_flag)
 VALUES (920101, 9201, 1, 'REPORT', 0, '严重超标异常上报：须复测并停水', 'seed', NOW(), 0);
+
+-- 水源地/水厂档案立卡：菜单与按钮权限（目录 880300，挂在根下；只读到处人人可查，写口单独授）。
+-- 卡号系统发号、层级系统折算、校验码钉住定形，页面对应栏一律只展示不录入。
+INSERT IGNORE INTO t_sys_permission (id, name, descripion, url, is_blank, pid, perms, type, icon, order_num, visible, create_by, create_time)
+VALUES (880300, '水源地水厂档案立卡', '底档挂接凭编号核对，卡号系统发号，层级折算回填，版本备查与校验码留痕', '/ZwArchCardController/view', 0, 0, 'zw:zwArchCard:view', 1, 'layui-icon layui-icon-file-b', 59, 0, 'seed', NOW()),
+       (880301, '档案卡台账查询', '只显最近那一版；备查各版顺卡号翻全（只读，人人可查）', '/ZwArchCardController/list', 0, 880300, 'zw:zwArchCard:list', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880302, '立卡', '挂接只凭编号核对；卡号系统发号，私编的号塞不进来', '/ZwArchCardController/add', 0, 880300, 'zw:zwArchCard:add', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880303, '重录一版', '新版落当前位置、旧版退下备查；退役底档名下只查不改', '/ZwArchCardController/edit', 0, 880300, 'zw:zwArchCard:edit', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880304, '档案卡删除', '删除当前在用那一版', '/ZwArchCardController/remove', 0, 880300, 'zw:zwArchCard:remove', 2, NULL, NULL, 0, 'seed', NOW());
+-- 管理员角色直接挂上全套
+INSERT IGNORE INTO t_sys_permission_role (id, role_id, permission_id, create_by, create_time)
+VALUES (8803001, 488243256161730560, 880300, 'seed', NOW()),
+       (8803002, 488243256161730560, 880301, 'seed', NOW()),
+       (8803003, 488243256161730560, 880302, 'seed', NOW()),
+       (8803004, 488243256161730560, 880303, 'seed', NOW()),
+       (8803005, 488243256161730560, 880304, 'seed', NOW());
+-- 只读到处人人可查：普通「用户」角色给菜单与台账查询（含备查各版），写口不授
+INSERT IGNORE INTO t_sys_permission_role (id, role_id, permission_id, create_by, create_time)
+VALUES (8803011, 488289006124007424, 880300, 'seed', NOW()),
+       (8803012, 488289006124007424, 880301, 'seed', NOW());

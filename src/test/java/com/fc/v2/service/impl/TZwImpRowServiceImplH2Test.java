@@ -90,6 +90,9 @@ public class TZwImpRowServiceImplH2Test {
         ReflectionTestUtils.setField(service, "zwImpBatchMapper", batchMapper);
         ReflectionTestUtils.setField(service, "zwSourceMapper", sourceMapper);
         ReflectionTestUtils.setField(service, "zwLimRuleService", ruleService);
+        // 异常自动登记是另一条链路，本套用例不验它：桩住只防空指针，不验其行为
+        ReflectionTestUtils.setField(service, "zwAnomalyService",
+                org.mockito.Mockito.mock(com.fc.v2.service.ITZwAnomalyService.class));
 
         seedBaseData();
     }
