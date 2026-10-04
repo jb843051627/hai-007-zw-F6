@@ -42,10 +42,10 @@ public class TZwArchCard implements Serializable {
     @ApiModelProperty(value = "本卡版本次序")
     private Integer nodeNo;
 
-    /** 所属底档 */
+    /** 所属底档（挂接只认底档代号，id 随代号一并落账，不拿名字对账） */
     @TableField("site_id")
     @ApiModelProperty(value = "所属底档")
-    private Integer siteId;
+    private Long siteId;
 
     /** 所属底档代号 */
     @TableField("site_no")
@@ -109,6 +109,17 @@ public class TZwArchCard implements Serializable {
     @ApiModelProperty(value = "备注")
     private String remark;
 
+    /** 当初立卡人（首版 create_by，仅台账查询回填，不入库） */
+    @TableField(exist = false)
+    @ApiModelProperty(value = "当初立卡人（首版立版人）")
+    private String founder;
+
+    /** 当初立卡时间（首版 create_time，仅台账查询回填，不入库） */
+    @TableField(exist = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @ApiModelProperty(value = "当初立卡时间")
+    private java.util.Date founderTime;
+
     public Long getId() {
         return id;
     }
@@ -133,11 +144,11 @@ public class TZwArchCard implements Serializable {
         this.nodeNo = nodeNo;
     }
 
-    public Integer getSiteId() {
+    public Long getSiteId() {
         return siteId;
     }
 
-    public void setSiteId(Integer siteId) {
+    public void setSiteId(Long siteId) {
         this.siteId = siteId;
     }
 
@@ -235,5 +246,21 @@ public class TZwArchCard implements Serializable {
 
     public void setRemark(String remark) {
         this.remark = remark;
+    }
+
+    public String getFounder() {
+        return founder;
+    }
+
+    public void setFounder(String founder) {
+        this.founder = founder;
+    }
+
+    public java.util.Date getFounderTime() {
+        return founderTime;
+    }
+
+    public void setFounderTime(java.util.Date founderTime) {
+        this.founderTime = founderTime;
     }
 }

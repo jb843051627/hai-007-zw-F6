@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('档案卡版本倒查')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-header">
+        档案卡号 <b th:text="${billNo}">AC0001</b>
+        ｜共 <b th:text="${#lists.size(versions)}">1</b> 版，旧版一律留痕、只许翻不许改；页面上当前在用的是最后一版
+    </div>
+    <div class="layui-card-body">
+        <table class="layui-table" lay-skin="line">
+            <thead>
+            <tr>
+                <th style="width: 70px;">版次</th>
+                <th style="width: 100px;">底档代号</th>
+                <th style="width: 130px;">供水规模</th>
+                <th style="width: 140px;">本年度新增</th>
+                <th style="width: 100px;">强度层级</th>
+                <th style="width: 100px;">进展</th>
+                <th>校验串（随版本同行）</th>
+                <th style="width: 100px;">立版人</th>
+                <th style="width: 170px;">立版时间</th>
+                <th style="width: 90px;">当前在用</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="v, st : ${versions}">
+                <td>第 <span th:text="${v.nodeNo}">1</span> 版</td>
+                <td th:text="${v.siteNo}">ZS00</td>
+                <td th:text="${v.qty}">30.00</td>
+                <td th:text="${v.fineAmt != null ? v.fineAmt : '—'}">—</td>
+                <td>
+                    <span th:if="${v.gradeLevel != null && v.gradeLevel != 0}" th:text="${v.gradeLevel} + ' 档'">1 档</span>
+                    <span th:if="${v.gradeLevel == null || v.gradeLevel == 0}">折不出</span>
+                </td>
+                <td>
+                    <span th:if="${v.status == 0}" class="layui-badge layui-bg-orange">待核对</span>
+                    <span th:if="${v.status == 1}" class="layui-badge layui-bg-blue">已核对</span>
+                    <span th:if="${v.status == 2}" class="layui-badge layui-bg-green">已压死</span>
+                </td>
+                <td style="word-break: break-all;" th:text="${v.content != null ? v.content : '（未到压死那一步，未定形）'}"></td>
+                <td th:text="${v.createBy}">seed</td>
+                <td th:text="${#dates.format(v.createTime, 'yyyy-MM-dd HH:mm:ss')}">2026-10-04 09:00:00</td>
+                <td>
+                    <span th:if="${st.last}" class="layui-badge layui-bg-green">在用</span>
+                    <span th:unless="${st.last}" class="layui-badge layui-bg-gray">已退下</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <div class="layui-form-item" style="margin-top: 15px;">
+            <div class="layui-form-mid layui-word-aux">
+                串随版本同行：重录一版，串上的日期换成新版钉住当日，旧版那条不动；两版共用一串即为错。
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+<th:block th:include="include :: footer"/>
+</html>

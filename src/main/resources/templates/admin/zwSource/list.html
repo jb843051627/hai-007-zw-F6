@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('水源地/水厂底档台账')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">底档编号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="siteNo" placeholder="系统发号" class="layui-input">
+                </div>
+                <label class="layui-form-label">档案名称</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="siteName" class="layui-input">
+                </div>
+                <label class="layui-form-label">档案类别</label>
+                <div class="layui-input-inline">
+                    <select name="siteType" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="水源地">水源地</option>
+                        <option value="水厂">水厂</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">底档情形</label>
+                <div class="layui-input-inline">
+                    <select name="status" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="0">在用</option>
+                        <option value="1">已退役（封口）</option>
+                    </select>
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="zw-source-query">
+                    <i class="layui-icon layui-icon-search"></i>
+                    查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i>
+                    重置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="zw-source-table" lay-filter="zw-source-table"></table>
+    </div>
+</div>
+</body>
+
+<script type="text/html" id="zw-source-toolbar">
+    <button shiro:hasPermission="zw:zwSource:add" class="pear-btn pear-btn-primary pear-btn-md" lay-event="add">
+        <i class="layui-icon layui-icon-add-1"></i>
+        立底档
+    </button>
+</script>
+
+<script type="text/html" id="zw-source-bar">
+    {{#  if(d.status == 0){ }}
+    <a class="pear-btn pear-btn-normal pear-btn-sm" lay-event="edit">
+        <i class="layui-icon layui-icon-edit"></i> 订正
+    </a>
+    <button shiro:hasPermission="zw:zwSource:retire" class="pear-btn pear-btn-danger pear-btn-sm" lay-event="retire">
+        <i class="layui-icon layui-icon-close"></i> 退役封口
+    </button>
+    {{#  } else { }}
+    <span class="layui-badge">已封口·只可查</span>
+    {{#  } }}
+</script>
+
+<script type="text/html" id="zw-source-status">
+    {{#  if(d.status == 0){ }}<span class="layui-badge layui-bg-green">在用</span>
+    {{#  } else if(d.status == 1){ }}<span class="layui-badge">已退役</span>
+    {{#  } }}
+</script>
+
+<script type="text/html" id="zw-source-threshold">
+    一档 ≤ {{ d.th1Max }} ｜二档 ≤ {{ d.th2Max }} ｜三档 ≤ {{ d.th3Max }}（万吨/日）
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery', 'layer'], function () {
+        let table = layui.table;
+        let form = layui.form;
+        let $ = layui.jquery;
+        let layer = layui.layer;
+
+        let MODULE_PATH = rootPath + "/zwSource/";
+        let cols = [
+            [
+                {title: 'ID', field: 'id', align: 'center', hide: true},
+                {title: '底档编号', field: 'siteNo', align: 'center', width: 100},
+                {title: '档案名称', field: 'siteName', align: 'center', minWidth: 220},
+                {title: '档案类别', field: 'siteType', align: 'center', width: 90},
+                {title: '所属行政区划（省—市—区—取水口）', field: 'roadName', align: 'center', minWidth: 280},
+                {title: '单卡三档上限', field: 'th1Max', align: 'center', minWidth: 300, templet: '#zw-source-threshold'},
+                {title: '底档情形', field: 'status', align: 'center', width: 120, templet: '#zw-source-status'},
+                {title: '立档人', field: 'createBy', align: 'center', width: 100},
+                {title: '立档时间', field: 'createTime', align: 'center', width: 170},
+                {title: '最近订正人', field: 'updateBy', align: 'center', width: 100},
+                {title: '操作', toolbar: '#zw-source-bar', align: 'center', width: 200, fixed: 'right'}
+            ]
+        ];
+
+        table.render({
+            elem: '#zw-source-table',
+            url: MODULE_PATH + 'list',
+            page: true,
+            method: 'get',
+            cols: cols,
+            skin: 'line',
+            toolbar: '#zw-source-toolbar',
+            defaultToolbar: ['filter', 'print', 'exports']
+        });
+
+        table.on('toolbar(zw-source-table)', function (obj) {
+            if (obj.event === 'add') {
+                layer.open({
+                    type: 2, title: '立水源地/水厂底档（编号系统发）', area: ['720px', '600px'],
+                    content: MODULE_PATH + 'add'
+                });
+            }
+        });
+
+        table.on('tool(zw-source-table)', function (obj) {
+            if (obj.event === 'edit') {
+                layer.open({
+                    type: 2, title: '订正底档 ' + obj.data.siteNo, area: ['720px', '600px'],
+                    content: MODULE_PATH + 'edit/' + obj.data.id
+                });
+            } else if (obj.event === 'retire') {
+                layer.confirm('退役当场封口：之后新卡不许再挂到本底档名下，先前挂的卡只可查、不可改。确认退役？',
+                    {title: '退役封口', icon: 3}, function (idx) {
+                        $.ajax({
+                            url: MODULE_PATH + 'retire',
+                            type: 'post',
+                            data: {id: obj.data.id},
+                            success: function (res) {
+                                if (res.code === 200) {
+                                    layer.close(idx);
+                                    layer.msg('已封口', {icon: 1});
+                                    table.reload('zw-source-table');
+                                } else {
+                                    layer.msg(res.msg || '操作未生效', {icon: 2});
+                                }
+                            }
+                        });
+                    });
+            }
+        });
+
+        form.on('submit(zw-source-query)', function (data) {
+            table.reload('zw-source-table', {where: data.field, page: {curr: 1}});
+            return false;
+        });
+    });
+</script>
+</html>

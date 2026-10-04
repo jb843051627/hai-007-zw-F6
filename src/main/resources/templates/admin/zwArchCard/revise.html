@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('重录档案卡新版')"/>
+</head>
+<body>
+<form class="layui-form" th:object="${card}">
+    <div class="mainBox">
+        <div class="main-container">
+            <div class="layui-form-item">
+                <label class="layui-form-label">档案卡号</label>
+                <div class="layui-input-block">
+                    <div class="layui-form-mid" style="line-height: 38px;">
+                        <b th:text="*{billNo}">AC0001</b>
+                        ｜当前第 <b th:text="*{nodeNo}">1</b> 版
+                        （重录后旧版整版退下备查，另起第 <span th:text="*{nodeNo} + 1">2</span> 版，卡号不变）
+                    </div>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">挂哪家底档</label>
+                <div class="layui-input-block">
+                    <input type="text" name="id" th:value="*{id}" hidden>
+                    <select name="siteId" lay-verify="required" lay-search="">
+                        <option th:each="s : ${sites}" th:value="${s.id}"
+                                th:attr="selected=${s.id == card.siteId}"
+                                th:text="${s.siteNo} + '｜' + ${s.siteName} + '（' + ${s.siteType} + '）'"></option>
+                    </select>
+                    <div class="layui-form-mid layui-word-aux">
+                        改挂别的底档只凭编号核对；已退役封口的底档挂不过去
+                    </div>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">供水规模</label>
+                <div class="layui-input-inline" style="width: 180px;">
+                    <input type="number" step="0.01" min="0" name="qty" th:value="*{qty}"
+                           lay-verify="required" class="layui-input">
+                </div>
+                <div class="layui-form-mid layui-word-aux">
+                    现层级 <b th:text="*{gradeLevel}">1</b> 档；规模有增减，新版层级照新底档阈值重折
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">本年度新增规模</label>
+                <div class="layui-input-inline" style="width: 180px;">
+                    <input type="number" step="0.01" min="0" name="fineAmt" th:value="*{fineAmt}"
+                           class="layui-input">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">备注</label>
+                <div class="layui-input-block">
+                    <textarea name="remark" class="layui-textarea" th:text="*{remark}"></textarea>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <div class="layui-input-block">
+                    <div class="layui-form-mid layui-word-aux">
+                        新版从「待核对」重新走起；已压死旧版上的校验串一字不动，新版压死时另钉带新当日的串。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="bottom">
+        <div class="button-container">
+            <button type="submit" class="layui-btn layui-btn-normal layui-btn-sm" lay-submit lay-filter="zw-card-revise">
+                <i class="layui-icon layui-icon-ok"></i>
+                另录新版
+            </button>
+            <button type="reset" class="layui-btn layui-btn-primary layui-btn-sm">
+                <i class="layui-icon layui-icon-refresh"></i>
+                重置
+            </button>
+        </div>
+    </div>
+</form>
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['form', 'jquery', 'layer'], function () {
+        let form = layui.form;
+        let $ = layui.jquery;
+        let layer = layui.layer;
+
+        form.on('submit(zw-card-revise)', function (data) {
+            $.ajax({
+                url: rootPath + '/zwArchCard/revise',
+                type: 'post',
+                data: data.field,
+                success: function (res) {
+                    if (res.code === 200) {
+                        layer.msg('已录第 ' + res.data.nodeNo + ' 版，层级重折为 ' + res.data.gradeLevel + ' 档',
+                            {icon: 1}, function () {
+                                let idx = parent.layer.getFrameIndex(window.name);
+                                parent.layer.close(idx);
+                                parent.layui.table.reload('zw-card-table');
+                            });
+                    } else {
+                        layer.msg(res.msg || '重录未受理', {icon: 2});
+                    }
+                }
+            });
+            return false;
+        });
+    });
+</script>
+</html>

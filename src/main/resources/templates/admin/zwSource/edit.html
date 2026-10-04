@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('订正水源地/水厂底档')"/>
+</head>
+<body>
+<form class="layui-form" th:object="${source}">
+    <div class="mainBox">
+        <div class="main-container">
+            <div class="layui-form-item">
+                <label class="layui-form-label">底档编号</label>
+                <div class="layui-input-block">
+                    <div class="layui-form-mid" style="line-height: 38px;">
+                        <b th:text="*{siteNo}">ZS00</b>（系统发号，订正口不动编号；类别也不动）
+                    </div>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">档案名称</label>
+                <div class="layui-input-block">
+                    <input type="text" name="id" th:value="*{id}" hidden>
+                    <input type="text" name="siteName" th:value="*{siteName}" lay-verify="required" class="layui-input">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">档案类别</label>
+                <div class="layui-input-block">
+                    <div class="layui-form-mid" style="line-height: 38px;" th:text="*{siteType}">水源地</div>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">省—市—区—取水口</label>
+                <div class="layui-input-block">
+                    <input type="text" name="roadName" th:value="*{roadName}" lay-verify="required" class="layui-input">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">一档上限</label>
+                <div class="layui-input-inline" style="width: 140px;">
+                    <input type="number" step="0.01" min="0" name="th1Max" th:value="*{th1Max}"
+                           lay-verify="required" class="layui-input">
+                </div>
+                <label class="layui-form-label" style="width: 90px;">二档上限</label>
+                <div class="layui-input-inline" style="width: 140px;">
+                    <input type="number" step="0.01" min="0" name="th2Max" th:value="*{th2Max}"
+                           lay-verify="required" class="layui-input">
+                </div>
+            </div>
+            <div class="layui-form-item">
+                <label class="layui-form-label">三档上限</label>
+                <div class="layui-input-inline" style="width: 140px;">
+                    <input type="number" step="0.01" min="0" name="th3Max" th:value="*{th3Max}"
+                           lay-verify="required" class="layui-input">
+                </div>
+                <div class="layui-form-mid layui-word-aux">三道上限要改一起改成严格递增；卡层级即按这三道折</div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">备注</label>
+                <div class="layui-input-block">
+                    <textarea name="remark" class="layui-textarea" th:text="*{remark}"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="bottom">
+        <div class="button-container">
+            <button type="submit" class="layui-btn layui-btn-normal layui-btn-sm" lay-submit lay-filter="zw-source-edit">
+                <i class="layui-icon layui-icon-ok"></i>
+                保存订正
+                </button>
+            <button type="reset" class="layui-btn layui-btn-primary layui-btn-sm">
+                <i class="layui-icon layui-icon-refresh"></i>
+                重置
+            </button>
+        </div>
+    </div>
+</form>
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['form', 'jquery', 'layer'], function () {
+        let form = layui.form;
+        let $ = layui.jquery;
+        let layer = layui.layer;
+
+        form.on('submit(zw-source-edit)', function (data) {
+            $.ajax({
+                url: rootPath + '/zwSource/edit',
+                type: 'post',
+                data: data.field,
+                success: function (res) {
+                    if (res.code === 200) {
+                        layer.msg('已保存订正', {icon: 1}, function () {
+                            let idx = parent.layer.getFrameIndex(window.name);
+                            parent.layer.close(idx);
+                            parent.layui.table.reload('zw-source-table');
+                        });
+                    } else {
+                        layer.msg(res.msg || '订正未受理', {icon: 2});
+                    }
+                }
+            });
+            return false;
+        });
+    });
+</script>
+</html>

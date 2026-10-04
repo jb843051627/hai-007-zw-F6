@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS t_zw_arch_card (
   id bigint NOT NULL COMMENT '主键',
   bill_no varchar(64) DEFAULT NULL COMMENT '水源地/水厂档案卡号',
   node_no int DEFAULT NULL COMMENT '本卡版本次序',
-  site_id int DEFAULT NULL COMMENT '所属底档',
+  site_id bigint DEFAULT NULL COMMENT '所属底档（雪花主键，挂接只凭编号）',
   site_no varchar(64) DEFAULT NULL COMMENT '所属底档代号',
   qty decimal(12,2) DEFAULT NULL COMMENT '本卡供水规模(万吨/日)',
   fine_amt decimal(12,2) DEFAULT NULL COMMENT '本年度新增供水规模(万吨/日)',
@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS t_zw_source (
   site_no varchar(64) DEFAULT NULL COMMENT '水源地/水厂档案代号',
   site_name varchar(128) DEFAULT NULL COMMENT '档案名称',
   site_type varchar(32) DEFAULT NULL COMMENT '档案类别(水源地/水厂)',
-  road_name varchar(128) DEFAULT NULL COMMENT '所属行政区划(省—市—区—街道)',
+  road_name varchar(128) DEFAULT NULL COMMENT '所属行政区划(省—市—区—取水口)',
   th1_max decimal(12,2) DEFAULT NULL COMMENT '单档供水规模一档上限(万吨/日)',
   th2_max decimal(12,2) DEFAULT NULL COMMENT '二档上限(万吨/日)',
   th3_max decimal(12,2) DEFAULT NULL COMMENT '三档上限(万吨/日)',
@@ -632,3 +632,39 @@ CREATE TABLE IF NOT EXISTS t_zw_report_action (
 -- 演示链路的头两笔动作（上报 → 内部处置在办）
 INSERT IGNORE INTO t_zw_report_action (id, report_id, seq_no, action, step_no, detail, actor, act_time, del_flag)
 VALUES (920101, 9201, 1, 'REPORT', 0, '严重超标异常上报：须复测并停水', 'seed', NOW(), 0);
+
+-- ============================================================================
+-- 水源档案：水源地/水厂底档（上层）＋档案卡（下层，按版留痕）。
+-- 底档编号、档案卡号两样都由系统发，界面不设手填格；底档退役当场封口；
+-- 卡层级由系统按底档三道上限折（压着上界往高算）；校验串压死才钉、随版本走。
+-- 菜单按既有范式：每套台账一个顶级菜单（880300 底档 / 880310 档案卡），查询与写口作按钮挂其下。
+-- ============================================================================
+INSERT IGNORE INTO t_sys_permission (id, name, descripion, url, is_blank, pid, perms, type, icon, order_num, visible, create_by, create_time)
+VALUES (880300, '水源地水厂底档', '水源地/水厂底档立档、订正与退役封口（一档一家，编号系统发）', '/zwSource/view', 0, 0, 'zw:zwSource:view', 1, 'layui-icon layui-icon-template-1', 62, 0, 'seed', NOW()),
+       (880301, '底档查询', '按编号/名称/类别/情形分页查询底档（在用与已退役都可翻，只读）', '/zwSource/list', 0, 880300, 'zw:zwSource:list', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880302, '立底档', '名称/类别/省市区取水口/三道递增上限缺一不立；编号系统发', '/zwSource/add', 0, 880300, 'zw:zwSource:add', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880303, '订正底档', '只订正名称/区划/三道上限；退役封口后任何订正不收', '/zwSource/edit', 0, 880300, 'zw:zwSource:edit', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880304, '退役封口', '水源枯竭/达使用年限当场封口，新卡禁挂、旧卡可查不可改', '/zwSource/retire', 0, 880300, 'zw:zwSource:retire', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880310, '水源档案卡', '档案卡立卡、版本留痕、核对压死钉串（每卡台账只显最新版）', '/zwArchCard/view', 0, 0, 'zw:zwArchCard:view', 1, 'layui-icon layui-icon-form', 63, 0, 'seed', NOW()),
+       (880311, '档案卡查询', '按卡号/底档代号/层级/进展分页查询最新版，旧版走版本倒查（只读）', '/zwArchCard/list', 0, 880310, 'zw:zwArchCard:list', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880312, '档案卡立卡', '卡号系统发、挂接只认在用底档编号、层级系统折', '/zwArchCard/add', 0, 880310, 'zw:zwArchCard:add', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880313, '重录核对压死', '改规模/改挂重折层级并另起新版；核对、压死钉校验串', '/zwArchCard/revise', 0, 880310, 'zw:zwArchCard:edit', 2, NULL, NULL, 0, 'seed', NOW()),
+       (880314, '档案卡删除', '按卡号整卡软删，各版留痕不物理清除', '/zwArchCard/remove', 0, 880310, 'zw:zwArchCard:remove', 2, NULL, NULL, 0, 'seed', NOW());
+-- 管理员角色挂全套（两套台账的菜单、查询、全部写口）
+INSERT IGNORE INTO t_sys_permission_role (id, role_id, permission_id, create_by, create_time)
+VALUES (8803001, 488243256161730560, 880300, 'seed', NOW()),
+       (8803002, 488243256161730560, 880301, 'seed', NOW()),
+       (8803003, 488243256161730560, 880302, 'seed', NOW()),
+       (8803004, 488243256161730560, 880303, 'seed', NOW()),
+       (8803005, 488243256161730560, 880304, 'seed', NOW()),
+       (8803006, 488243256161730560, 880310, 'seed', NOW()),
+       (8803007, 488243256161730560, 880311, 'seed', NOW()),
+       (8803008, 488243256161730560, 880312, 'seed', NOW()),
+       (8803009, 488243256161730560, 880313, 'seed', NOW()),
+       (8803010, 488243256161730560, 880314, 'seed', NOW());
+-- 普通「用户」角色只给两套台账的菜单与查询（立档立卡、订正、退役、重录、压死、删除写口一律不授）
+INSERT IGNORE INTO t_sys_permission_role (id, role_id, permission_id, create_by, create_time)
+VALUES (8803021, 488289006124007424, 880300, 'seed', NOW()),
+       (8803022, 488289006124007424, 880301, 'seed', NOW()),
+       (8803023, 488289006124007424, 880310, 'seed', NOW()),
+       (8803024, 488289006124007424, 880311, 'seed', NOW());

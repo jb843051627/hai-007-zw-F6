@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('立水源地/水厂底档')"/>
+</head>
+<body>
+<form class="layui-form">
+    <div class="mainBox">
+        <div class="main-container">
+            <div class="layui-form-item">
+                <label class="layui-form-label">底档编号</label>
+                <div class="layui-input-block">
+                    <div class="layui-form-mid" style="line-height: 38px;">
+                        由系统发号，本页没有手填格；外头私编的号塞不进来
+                    </div>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">档案名称</label>
+                <div class="layui-input-block">
+                    <input type="text" name="siteName" lay-verify="required" class="layui-input"
+                           placeholder="一档一家，先核清是不是已经立过（一处水源点跨两个取水口的，只立一家、不重复立）">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">档案类别</label>
+                <div class="layui-input-block">
+                    <select name="siteType" lay-verify="required">
+                        <option value="">请选择</option>
+                        <option value="水源地">水源地</option>
+                        <option value="水厂">水厂</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <div class="layui-input-block" style="margin-left: 0;">
+                    <label class="layui-form-label">省—市—区—取水口</label>
+                </div>
+                <div class="layui-input-block">
+                    <input type="text" name="roadName" lay-verify="required" class="layui-input"
+                           placeholder="例：青坪省—青坪市—城东区—东湖取水口">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">一档上限</label>
+                <div class="layui-input-inline" style="width: 140px;">
+                    <input type="number" step="0.01" min="0" name="th1Max" lay-verify="required"
+                           class="layui-input" placeholder="万吨/日">
+                </div>
+                <label class="layui-form-label" style="width: 90px;">二档上限</label>
+                <div class="layui-input-inline" style="width: 140px;">
+                    <input type="number" step="0.01" min="0" name="th2Max" lay-verify="required"
+                           class="layui-input" placeholder="万吨/日">
+                </div>
+            </div>
+            <div class="layui-form-item">
+                <label class="layui-form-label">三档上限</label>
+                <div class="layui-input-inline" style="width: 140px;">
+                    <input type="number" step="0.01" min="0" name="th3Max" lay-verify="required"
+                           class="layui-input" placeholder="万吨/日">
+                </div>
+                <div class="layui-form-mid layui-word-aux">三道上限须递增；等于上限往高算一档</div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">备注</label>
+                <div class="layui-input-block">
+                    <textarea name="remark" class="layui-textarea" placeholder="可留空"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="bottom">
+        <div class="button-container">
+            <button type="submit" class="layui-btn layui-btn-normal layui-btn-sm" lay-submit lay-filter="zw-source-save">
+                <i class="layui-icon layui-icon-ok"></i>
+                立档
+            </button>
+            <button type="reset" class="layui-btn layui-btn-primary layui-btn-sm">
+                <i class="layui-icon layui-icon-refresh"></i>
+                重置
+            </button>
+        </div>
+    </div>
+</form>
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['form', 'jquery', 'layer'], function () {
+        let form = layui.form;
+        let $ = layui.jquery;
+        let layer = layui.layer;
+
+        form.on('submit(zw-source-save)', function (data) {
+            $.ajax({
+                url: rootPath + '/zwSource/add',
+                type: 'post',
+                data: data.field,
+                success: function (res) {
+                    if (res.code === 200) {
+                        layer.msg('已立档，底档编号 ' + res.data.siteNo, {icon: 1}, function () {
+                            let idx = parent.layer.getFrameIndex(window.name);
+                            parent.layer.close(idx);
+                            parent.layui.table.reload('zw-source-table');
+                        });
+                    } else {
+                        layer.msg(res.msg || '立档未受理', {icon: 2});
+                    }
+                }
+            });
+            return false;
+        });
+    });
+</script>
+</html>
